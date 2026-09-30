@@ -1,0 +1,62 @@
+{
+  "configurations": [
+    {
+      "name": "Arduino AVR",
+      "compilerPath": "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-g++.exe",
+      "forcedInclude": [
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.7/cores/arduino/Arduino.h"
+      ],
+      "includePath": [
+        "${workspaceFolder}/**",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.7/cores/arduino",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.7/libraries/Wire/src",
+        "C:/Users/JHON JHAY/Documents/Arduino/libraries/Servo/src",
+        "C:/Users/JHON JHAY/Documents/Arduino/libraries/SparkFun_Spectral_Triad_AS7265X/src",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/cores/esp32",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/variants/esp32",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/Wire/src",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/**",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/config/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/config/include/freertos",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/config/xtensa/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_common/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_system/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_hw_support/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/hal/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/xtensa/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/xtensa/esp32/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_netif/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_partition/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/heap/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_rom/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_timer/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_rom/esp32/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/esp_rom/esp32/include/esp32",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/newlib/platform_include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/lwip/lwip/src/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/lwip/port/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/lwip/port/freertos/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/lwip/port/esp32xx/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/soc/esp32/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/soc/esp32/register",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/qio_qspi/include",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.7/libraries/Wire/src"
+      ],
+      "defines": [
+        "ARDUINO=10819",
+        "ARDUINO_ARCH_AVR",
+        "ARDUINO_AVR_UNO",
+        "__AVR_ATmega328P__",
+        "F_CPU=16000000L"
+      ],
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ],
+  "version": 4
+}

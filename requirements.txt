@@ -1,0 +1,5 @@
+opencv-python==5.0.0.93
+PySide6==6.11.2
+ultralytics>=8.3.0
+openpyxl>=3.1.0
+pyserial>=3.5
