@@ -266,7 +266,6 @@ void handleSerialCommand() {
       }
     }
   }
-
   serialCommandLength = 0;
 }
 
