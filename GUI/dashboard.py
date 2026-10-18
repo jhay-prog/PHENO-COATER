@@ -43,7 +43,7 @@ class Dashboard(QWidget):
         self.setObjectName("dashboard")
 
         self.camera_source = self.EMEET_CAMERA_INDEX
-        self.arduino_baud_rate = 9600
+        self.arduino_baud_rate = 115200
         self.nir_scan_delay_ms = 0
         self.camera_capture = None
         self.camera_enabled = False
