@@ -147,6 +147,99 @@ QMainWindow#admin_control_panel,
     border: none;
 }
 
+#bean_data_sheet_scroll,
+#bean_data_sheet_scroll QWidget#qt_scrollarea_viewport,
+#bean_data_sheet_scroll > QWidget,
+#bean_data_sheet_page {
+    background-color: #f4f7f5;
+    border: none;
+}
+
+#bean_sheet_title {
+    color: #173f2a;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+#bean_sheet_description {
+    color: #607267;
+    font-size: 14px;
+}
+
+#bean_sheet_summary_card,
+#bean_sheet_table_panel {
+    background-color: #ffffff;
+    border: 1px solid #dce5df;
+    border-radius: 12px;
+}
+
+#bean_sheet_summary_title {
+    color: #294d37;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#bean_sheet_summary_value {
+    color: #607267;
+    font-size: 14px;
+}
+
+#bean_sheet_table_title {
+    color: #294d37;
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+QPushButton#bean_sheet_tab {
+    background-color: #edf2ee;
+    border: 1px solid #e0e8e2;
+    border-radius: 8px;
+    color: #43594a;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 34px;
+    padding: 6px 12px;
+    text-align: center;
+}
+
+QPushButton#bean_sheet_tab:hover {
+    background-color: #e1eee4;
+}
+
+QPushButton#bean_sheet_tab:checked {
+    background-color: #e3f3e6;
+    border-color: #a8d5b5;
+    color: #1f5c38;
+    font-weight: 700;
+}
+
+QTableWidget#bean_data_table {
+    background-color: #ffffff;
+    alternate-background-color: #f7faf8;
+    border: 1px solid #dce5df;
+    color: #294d37;
+    gridline-color: #e7ece8;
+    selection-background-color: #e3f3e6;
+    selection-color: #173f2a;
+}
+
+QTableWidget#bean_data_table QHeaderView::section {
+    background-color: #dff2e2;
+    border: none;
+    border-bottom: 1px solid #cbded0;
+    color: #234b33;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 7px;
+}
+
+#bean_sheet_empty_state {
+    color: #718077;
+    font-size: 13px;
+    padding: 10px;
+}
+
 #pricing_settings_page #page_title {
     color: #173f2a;
     font-size: 30px;

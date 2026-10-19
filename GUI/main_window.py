@@ -20,6 +20,7 @@ try:
     from .admin_panel import AdminControlPanel
     from .animated_button import AnimatedButton
     from .auth import AdminCredentials, AdminSession, AuthStorageError
+    from .bean_data_sheet import BeanDataSheetPage
     from .dashboard import Dashboard
     from .pricing import PricingSettingsPage
 except ImportError:
@@ -27,6 +28,7 @@ except ImportError:
     from admin_panel import AdminControlPanel
     from animated_button import AnimatedButton
     from auth import AdminCredentials, AdminSession, AuthStorageError
+    from bean_data_sheet import BeanDataSheetPage
     from dashboard import Dashboard
     from pricing import PricingSettingsPage
 
@@ -77,7 +79,12 @@ class MainWindow(QMainWindow):
 
         self.dashboard_button = self.create_menu_button('Dashboard')
         self.pricing_button = self.create_menu_button('Pricing Settings')
-        self.menu_buttons = [self.dashboard_button, self.pricing_button]
+        self.bean_data_sheet_button = self.create_menu_button('Bean Data Sheet')
+        self.menu_buttons = [
+            self.dashboard_button,
+            self.pricing_button,
+            self.bean_data_sheet_button,
+        ]
 
         for button in self.menu_buttons:
             button.setCheckable(True)
@@ -144,15 +151,24 @@ class MainWindow(QMainWindow):
         pricing_scroll.setWidget(self.pricing_page)
         self.pages.addWidget(pricing_scroll)
 
+        self.bean_data_sheet_page = BeanDataSheetPage()
+        bean_data_sheet_scroll = QScrollArea()
+        bean_data_sheet_scroll.setObjectName('bean_data_sheet_scroll')
+        bean_data_sheet_scroll.setWidgetResizable(True)
+        bean_data_sheet_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        bean_data_sheet_scroll.setWidget(self.bean_data_sheet_page)
+        self.pages.addWidget(bean_data_sheet_scroll)
+
         right_layout.addWidget(self.pages)
         main_layout.addWidget(sidebar)
         main_layout.addWidget(right_side)
 
         self.dashboard_button.clicked.connect(lambda: self.change_page(0))
         self.pricing_button.clicked.connect(lambda: self.change_page(1))
+        self.bean_data_sheet_button.clicked.connect(lambda: self.change_page(2))
 
     def change_page(self, index):
-        if index not in (0, 1):
+        if not 0 <= index < self.pages.count():
             return
         self.pages.setCurrentIndex(index)
         for button in self.menu_buttons:

@@ -11,9 +11,12 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -535,14 +538,14 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(
             window.pages.count(),
-            2,
-            "Normal navigation should contain Dashboard and Pricing Settings.",
+            3,
+            "Normal navigation should contain Dashboard, Pricing Settings, and Bean Data Sheet.",
         )
         self.assertFalse(hasattr(window, "camera_page"))
         self.assertFalse(hasattr(window, "nir_page"))
         self.assertTrue(hasattr(window, "pricing_page"))
         self.assertIsNone(window.admin_panel)
-        self.assertEqual(len(window.menu_buttons), 2)
+        self.assertEqual(len(window.menu_buttons), 3)
         self.assertEqual(
             window.menu_buttons[0].text().strip(),
             "Dashboard",
@@ -551,10 +554,87 @@ class HardwareCompatibilityTests(unittest.TestCase):
             window.menu_buttons[1].text().strip(),
             "Pricing Settings",
         )
+        self.assertEqual(
+            window.menu_buttons[2].text().strip(),
+            "Bean Data Sheet",
+        )
+        summary_area = window.bean_data_sheet_page.layout().itemAt(2).layout()
+        self.assertIsInstance(summary_area, QHBoxLayout)
+        current_summary_column = summary_area.itemAt(0).layout()
+        grading_summary_row = summary_area.itemAt(1).layout()
+        self.assertIsInstance(current_summary_column, QVBoxLayout)
+        self.assertIsInstance(grading_summary_row, QHBoxLayout)
+        self.assertEqual(current_summary_column.count(), 4)
+        self.assertEqual(grading_summary_row.count(), 2)
         window.change_page(1)
         self.assertEqual(window.pages.currentIndex(), 1)
+        window.change_page(2)
+        self.assertEqual(window.pages.currentIndex(), 2)
+        self.assertEqual(
+            window.bean_data_sheet_page.data_table.columnCount(),
+            9,
+        )
+        self.assertEqual(
+            [
+                window.bean_data_sheet_page.data_table.horizontalHeaderItem(i).text()
+                for i in range(
+                    window.bean_data_sheet_page.data_table.columnCount()
+                )
+            ],
+            [
+                "Bean ID",
+                "Accumulated Weight",
+                "Bean Count",
+                "PNS Sample ID",
+                "Condition",
+                "Good (%)",
+                "Moldy (%)",
+                "Slaty (%)",
+                "Defective (%)",
+            ],
+        )
+        header = window.bean_data_sheet_page.data_table.horizontalHeader()
+        for column in range(
+            window.bean_data_sheet_page.data_table.columnCount()
+        ):
+            self.assertEqual(
+                header.sectionResizeMode(column),
+                QHeaderView.ResizeMode.Stretch,
+            )
+        weight_header = window.bean_data_sheet_page.data_table.horizontalHeaderItem(1)
+        self.assertLess(weight_header.font().pointSizeF(), 10)
+        window.bean_data_sheet_page.show_table("PNS Grade Sample")
+        self.assertEqual(
+            window.bean_data_sheet_page.data_table.columnCount(),
+            9,
+        )
+        self.assertEqual(window.bean_data_sheet_page.data_table.rowCount(), 0)
+        window.bean_data_sheet_page.show_table("Moisture Content Sample")
+        self.assertEqual(
+            [
+                window.bean_data_sheet_page.data_table.horizontalHeaderItem(i).text()
+                for i in range(
+                    window.bean_data_sheet_page.data_table.columnCount()
+                )
+            ],
+            [
+                "Good Bean ID",
+                "Moisture Content",
+                "Moisture Grade",
+                "Moisture Score",
+            ],
+        )
+        self.assertEqual(window.bean_data_sheet_page.data_table.rowCount(), 0)
+        for title in ("Beans in 100g Sample", "PNS Grade Sample"):
+            window.bean_data_sheet_page.show_table(title)
+            header = window.bean_data_sheet_page.data_table.horizontalHeader()
+            for column in range(window.bean_data_sheet_page.data_table.columnCount()):
+                self.assertEqual(
+                    header.sectionResizeMode(column),
+                    QHeaderView.ResizeMode.Stretch,
+                )
         window.change_page(3)
-        self.assertEqual(window.pages.currentIndex(), 1)
+        self.assertEqual(window.pages.currentIndex(), 2)
         window.close()
         window.deleteLater()
 
