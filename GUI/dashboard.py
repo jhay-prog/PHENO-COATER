@@ -111,10 +111,9 @@ class Dashboard(QWidget):
 
         if arduino_connected:
             self.arduino_status_label.setText("CONNECTED")
-            self.arduino_status_label.setStyleSheet("color: #2e7d4f; font-weight: bold;")
         else:
             self.arduino_status_label.setText("NOT CONNECTED")
-            self.arduino_status_label.setStyleSheet("color: #c0392b; font-weight: bold;")
+        self._set_status_state(self.arduino_status_label, arduino_connected)
         self.update_nir_status()
 
     def read_arduino_messages(self, port):
@@ -275,9 +274,8 @@ class Dashboard(QWidget):
 
     def update_nir_status(self):
         status = "CONNECTED" if self.nir_detected else "NOT CONNECTED"
-        color = "#2e7d4f" if self.nir_detected else "#c0392b"
         self.nir_status_label.setText(status)
-        self.nir_status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        self._set_status_state(self.nir_status_label, self.nir_detected)
 
     @staticmethod
     def is_arduino_port(port):
@@ -504,7 +502,7 @@ class Dashboard(QWidget):
     def create_card(self, title, value, unit="", choices=None):
         card = QFrame()
         card.setProperty("class", "card")
-        card.setObjectName("card")
+        card.setObjectName("dashboard_metric_card")
 
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
@@ -551,9 +549,7 @@ class Dashboard(QWidget):
         subtitle = QLabel(
             "Real-time cacao seed sorting and grading system"
         )
-        subtitle.setStyleSheet(
-            "color: #6b7280; font-size: 13px;"
-        )
+        subtitle.setObjectName("dashboard_subtitle")
 
         main_layout.addWidget(title)
         main_layout.addWidget(subtitle)
@@ -587,7 +583,7 @@ class Dashboard(QWidget):
         # CAMERA
         camera_container = QFrame()
         camera_container.setProperty("class", "card")
-        camera_container.setObjectName("card")
+        camera_container.setObjectName("dashboard_camera_panel")
 
         camera_layout = QVBoxLayout(camera_container)
         camera_layout.setContentsMargins(20, 20, 20, 20)
@@ -614,7 +610,7 @@ class Dashboard(QWidget):
         # SYSTEM STATUS
         status_container = QFrame()
         status_container.setProperty("class", "card")
-        status_container.setObjectName("card")
+        status_container.setObjectName("dashboard_status_panel")
 
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(20, 20, 20, 20)
@@ -644,11 +640,13 @@ class Dashboard(QWidget):
 
         button_layout = QHBoxLayout()
 
-        start_button = AnimatedButton("START SYSTEM")
+        start_button = AnimatedButton("Start System")
         start_button.setObjectName("start_button")
 
-        stop_button = AnimatedButton("■   STOP SYSTEM")
+        stop_button = AnimatedButton("Stop System")
         stop_button.setObjectName("stop_button")
+        start_button.setMinimumWidth(150)
+        stop_button.setMinimumWidth(150)
 
         button_layout.addStretch()
         button_layout.addWidget(start_button)
@@ -659,23 +657,24 @@ class Dashboard(QWidget):
     def update_camera_status_indicator(self):
         if QMediaDevices.videoInputs():
             self.camera_status_label.setText("CONNECTED")
-            self.camera_status_label.setStyleSheet("color: #2e7d4f; font-weight: bold;")
+            self._set_status_state(self.camera_status_label, True)
             self.camera_status_changed.emit("CONNECTED")
         else:
             self.camera_status_label.setText("NOT CONNECTED")
-            self.camera_status_label.setStyleSheet("color: #c0392b; font-weight: bold;")
+            self._set_status_state(self.camera_status_label, False)
             self.camera_status_changed.emit("NOT CONNECTED")
 
     def add_status(self, layout, name, status):
 
         row = QHBoxLayout()
+        row.setSpacing(10)
 
         name_label = QLabel(name)
+        name_label.setObjectName("dashboard_status_name")
 
         status_label = QLabel(status)
-        status_label.setStyleSheet(
-            "color: #c0392b; font-weight: bold;"
-        )
+        status_label.setObjectName("dashboard_status_value")
+        self._set_status_state(status_label, False)
 
         row.addWidget(name_label)
         row.addStretch()
@@ -683,3 +682,12 @@ class Dashboard(QWidget):
 
         layout.addLayout(row)
         return status_label
+
+    @staticmethod
+    def _set_status_state(status_label, connected):
+        status_label.setProperty(
+            "connection_state",
+            "connected" if connected else "disconnected",
+        )
+        status_label.style().unpolish(status_label)
+        status_label.style().polish(status_label)

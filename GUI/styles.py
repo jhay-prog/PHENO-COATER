@@ -80,9 +80,23 @@ QPushButton {
 }
 
 #menu_button {
-    font-family: "Segoe UI Symbol", "Segoe UI";
+    color: #dce9e1;
+    font-family: "Segoe UI";
     font-size: 14px;
-    min-height: 42px;
+    font-weight: 600;
+    min-height: 46px;
+    padding: 12px 16px;
+    text-align: left;
+}
+
+#menu_button:hover {
+    background-color: #245b3d;
+}
+
+#menu_button:checked {
+    background-color: #2e704b;
+    color: #ffffff;
+    font-weight: 700;
 }
 
 #admin_button {
@@ -120,67 +134,98 @@ QMainWindow#admin_control_panel,
 }
 
 #pricing_settings_page {
-    background-color: #f5faf6;
+    background-color: #f4f7f5;
+    font-family: "Segoe UI";
+    color: #1d3428;
 }
 
 #pricing_scroll,
 #pricing_scroll QWidget#qt_scrollarea_viewport,
 #pricing_scroll > QWidget {
-    background-color: #f5faf6;
+    background-color: #f4f7f5;
     border: none;
+}
+
+#pricing_settings_page #page_title {
+    color: #173f2a;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+#pricing_settings_page #settings_description {
+    color: #607267;
+    font-size: 14px;
 }
 
 #pricing_panel {
     background-color: #ffffff;
-    border: 1px solid #d5e6d9;
-    border-radius: 14px;
+    border: 1px solid #dce5df;
+    border-radius: 16px;
 }
 
 #pricing_panel_heading {
-    background-color: #eaf7ee;
-    border: 1px solid #cfe7d5;
-    border-radius: 10px;
+    background-color: #f0f6f1;
+    border: 1px solid #e0eae2;
+    border-radius: 9px;
     color: #173f2a;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
-    padding: 12px;
+    padding: 11px 14px;
 }
 
 #pricing_section_title {
     color: #173f2a;
-    font-size: 15px;
-    font-weight: bold;
+    font-size: 14px;
+    font-weight: 700;
+    padding-top: 4px;
 }
 
 #pricing_control_label,
 #pricing_result_label {
-    color: #355d49;
+    color: #435b4d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#pricing_form_label {
+    color: #435b4d;
+    font-size: 13px;
     font-weight: 600;
 }
 
 #pricing_note {
-    color: #5b7065;
+    color: #68796f;
     font-size: 12px;
+    line-height: 1.4;
 }
 
 #pricing_effect_value {
-    color: #255e3a;
+    color: #287044;
+    font-size: 14px;
     font-weight: 700;
 }
 
-#pricing_result_value,
-#pricing_total_result {
-    color: #173f2a;
+#pricing_result_value {
+    color: #234b33;
+    font-size: 14px;
     font-weight: 700;
 }
 
+#pricing_results_divider {
+    background-color: #e7ece8;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
 #pricing_total_result {
-    background-color: #edf9f0;
-    border: 1px solid #b7d8bf;
-    border-radius: 8px;
-    color: #173f2a;
-    font-size: 18px;
-    padding: 12px;
+    background-color: #eaf4ed;
+    border: 1px solid #cfe2d4;
+    border-radius: 10px;
+    color: #1b5b34;
+    font-size: 24px;
+    font-weight: 700;
+    padding: 16px 12px;
 }
 
 QDoubleSpinBox#pricing_base_price_input,
@@ -188,10 +233,13 @@ QDoubleSpinBox#pricing_moisture_score_input,
 QDoubleSpinBox#pricing_pns_score_input,
 QDoubleSpinBox#pricing_weight_input {
     background-color: #ffffff;
-    border: 1px solid #cdded6;
-    border-radius: 8px;
-    color: #173f2a;
-    selection-background-color: #cfe9d6;
+    border: 1px solid #ccd8d0;
+    border-radius: 7px;
+    color: #20392b;
+    font-size: 13px;
+    min-height: 22px;
+    padding: 7px 9px;
+    selection-background-color: #cfe5d5;
     selection-color: #173f2a;
 }
 
@@ -199,32 +247,39 @@ QDoubleSpinBox#pricing_base_price_input:hover,
 QDoubleSpinBox#pricing_moisture_score_input:hover,
 QDoubleSpinBox#pricing_pns_score_input:hover,
 QDoubleSpinBox#pricing_weight_input:hover {
-    border: 1px solid #9fc7a9;
+    border: 1px solid #86b695;
+}
+
+QDoubleSpinBox#pricing_base_price_input:focus,
+QDoubleSpinBox#pricing_moisture_score_input:focus,
+QDoubleSpinBox#pricing_pns_score_input:focus,
+QDoubleSpinBox#pricing_weight_input:focus {
+    border: 1px solid #43845a;
 }
 
 QSlider#pricing_effect_slider::groove:horizontal {
-    background-color: #dfeee3;
-    border: 1px solid #b5d0bb;
-    border-radius: 5px;
-    height: 10px;
+    background-color: #e4ebe6;
+    border: 1px solid #d4dfd7;
+    border-radius: 4px;
+    height: 8px;
 }
 
 QSlider#pricing_effect_slider::sub-page:horizontal {
-    background-color: #66b67d;
-    border-radius: 5px;
+    background-color: #4c9563;
+    border-radius: 4px;
 }
 
 QSlider#pricing_effect_slider::add-page:horizontal {
-    background-color: #e7f3eb;
-    border-radius: 5px;
+    background-color: #e4ebe6;
+    border-radius: 4px;
 }
 
 QSlider#pricing_effect_slider::handle:horizontal {
-    background-color: #2e7d4f;
+    background-color: #287044;
     border: 2px solid white;
-    border-radius: 8px;
-    margin: -5px 0;
-    width: 16px;
+    border-radius: 9px;
+    margin: -6px 0;
+    width: 18px;
 }
 
 QScrollArea#admin_page_scroll {
@@ -267,7 +322,82 @@ QScrollArea#admin_page_scroll {
 }
 
 QDialog#admin_login_dialog {
-    background-color: #f4f6f8;
+    background-color: #ffffff;
+    font-family: "Segoe UI";
+}
+
+QDialog#admin_login_dialog #admin_login_title {
+    color: #173f2a;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+QDialog#admin_login_dialog #admin_login_description {
+    color: #66756c;
+    font-size: 13px;
+}
+
+QDialog#admin_login_dialog QLabel {
+    color: #344b3d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QDialog#admin_login_dialog QLineEdit {
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px solid #cbd7ce;
+    border-radius: 7px;
+    background-color: #fbfcfb;
+    color: #20392b;
+    selection-background-color: #cfe5d5;
+    selection-color: #173f2a;
+}
+
+QDialog#admin_login_dialog QLineEdit:focus {
+    border: 1px solid #43845a;
+    background-color: #ffffff;
+}
+
+QDialog#admin_login_dialog #admin_login_error {
+    color: #b42318;
+    font-size: 12px;
+}
+
+QDialog#admin_login_dialog QPushButton#admin_login_submit_button {
+    min-width: 112px;
+    min-height: 40px;
+    padding: 8px 14px;
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    border-radius: 7px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}
+
+QDialog#admin_login_dialog QPushButton#admin_login_submit_button:hover {
+    background-color: #24643e;
+    border-color: #24643e;
+}
+
+QDialog#admin_login_dialog QPushButton#admin_login_cancel_button {
+    min-width: 84px;
+    min-height: 40px;
+    padding: 8px 14px;
+    background-color: #ffffff;
+    border: 1px solid #cbd7ce;
+    border-radius: 7px;
+    color: #344b3d;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+}
+
+QDialog#admin_login_dialog QPushButton#admin_login_cancel_button:hover {
+    background-color: #f1f5f2;
+    border-color: #9fb4a5;
 }
 
 QDialog#admin_password_reset_dialog {
@@ -501,6 +631,73 @@ QPushButton:checked {
     border-radius: 12px;
 }
 
+#dashboard {
+    background-color: #f4f7f5;
+}
+
+#dashboard_subtitle {
+    color: #68796f;
+    font-size: 14px;
+}
+
+QFrame#dashboard_metric_card,
+QFrame#dashboard_camera_panel,
+QFrame#dashboard_status_panel {
+    background-color: #ffffff;
+    border: 1px solid #dce5df;
+    border-radius: 14px;
+}
+
+QFrame#dashboard_metric_card {
+    border-top: 3px solid #43845a;
+}
+
+QLabel#card_title {
+    color: #68796f;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+QLabel#card_value {
+    color: #173f2a;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+QLabel#card_unit {
+    color: #829087;
+    font-size: 12px;
+}
+
+QLabel#section_title {
+    color: #173f2a;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+QLabel#dashboard_status_name {
+    color: #435b4d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#dashboard_status_value {
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 5px 8px;
+}
+
+QLabel#dashboard_status_value[connection_state="connected"] {
+    background-color: #e8f5ec;
+    color: #24643e;
+}
+
+QLabel#dashboard_status_value[connection_state="disconnected"] {
+    background-color: #fcefed;
+    color: #a83232;
+}
+
 #settings_panel {
     background-color: white;
     border: 1px solid #e2e5e8;
@@ -637,13 +834,13 @@ QDoubleSpinBox {
 /* Camera */
 
 QLabel#camera_frame {
-    background-color: #e8f5e9;
-    border: 1px solid #a8d5b5;
-    border-radius: 12px;
-    color: #2e7d4f;
-    font-size: 16px;
-    font-weight: bold;
-    padding: 16px;
+    background-color: #17251d;
+    border: 1px solid #2d4637;
+    border-radius: 10px;
+    color: #dce9e1;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 18px;
     qproperty-wordWrap: true;
 }
 
@@ -662,24 +859,36 @@ QLabel#main_camera_frame {
 
 #start_button {
     background-color: #2e7d4f;
-    color: white;
-    font-weight: bold;
+    border: 1px solid #2e7d4f;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 42px;
+    padding: 8px 18px;
     text-align: center;
 }
 
 #start_button:hover {
     background-color: #24643e;
+    border-color: #24643e;
 }
 
 #stop_button {
-    background-color: #d9534f;
-    color: white;
-    font-weight: bold;
+    background-color: #ffffff;
+    border: 1px solid #d9a7a3;
+    border-radius: 8px;
+    color: #a83232;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 42px;
+    padding: 8px 18px;
     text-align: center;
 }
 
 #stop_button:hover {
-    background-color: #b94340;
+    background-color: #fcefed;
+    border-color: #c77d77;
 }
 
 /* Table */

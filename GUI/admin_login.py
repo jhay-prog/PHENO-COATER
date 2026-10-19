@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -23,25 +24,40 @@ class AdminLoginDialog(QDialog):
             'Set up administrator' if self.setup_required else 'Administrator login'
         )
         self.setModal(True)
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(420)
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 30, 32, 28)
+        layout.setSpacing(18)
+
+        title = QLabel(
+            'Set up administrator' if self.setup_required else 'Administrator login'
+        )
+        title.setObjectName('admin_login_title')
+        layout.addWidget(title)
+
         description = QLabel(
             'Create the initial administrator account.'
             if self.setup_required
             else 'Enter the administrator credentials to open the control panel.'
         )
+        description.setObjectName('admin_login_description')
         description.setWordWrap(True)
         layout.addWidget(description)
 
         form = QFormLayout()
+        form.setContentsMargins(0, 4, 0, 0)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(14)
         self.username_input = QLineEdit()
+        self.username_input.setObjectName('admin_login_username_input')
         self.username_input.setPlaceholderText('Username or email')
         form.addRow('Username', self.username_input)
 
         self.password_input = QLineEdit()
+        self.password_input.setObjectName('admin_login_password_input')
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText('Password')
         form.addRow('Password', self.password_input)
@@ -49,6 +65,7 @@ class AdminLoginDialog(QDialog):
         self.confirm_input = None
         if self.setup_required:
             self.confirm_input = QLineEdit()
+            self.confirm_input.setObjectName('admin_login_confirm_input')
             self.confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
             self.confirm_input.setPlaceholderText('Repeat password')
             form.addRow('Confirm', self.confirm_input)
@@ -60,20 +77,22 @@ class AdminLoginDialog(QDialog):
         layout.addWidget(self.show_password_checkbox)
 
         self.error_label = QLabel()
-        self.error_label.setStyleSheet('color: #c0392b;')
+        self.error_label.setObjectName('admin_login_error')
         self.error_label.setWordWrap(True)
         layout.addWidget(self.error_label)
 
-        actions = QVBoxLayout()
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        actions.addStretch()
+        self.cancel_button = QPushButton('Cancel')
+        self.cancel_button.setObjectName('admin_login_cancel_button')
         self.submit_button = QPushButton(
             'Create administrator' if self.setup_required else 'Log in'
         )
         self.submit_button.setObjectName('admin_login_submit_button')
         self.submit_button.setDefault(True)
-        self.cancel_button = QPushButton('Cancel')
-        self.cancel_button.setObjectName('admin_login_cancel_button')
-        actions.addWidget(self.submit_button)
         actions.addWidget(self.cancel_button)
+        actions.addWidget(self.submit_button)
         layout.addLayout(actions)
 
         self.submit_button.clicked.connect(self._submit)

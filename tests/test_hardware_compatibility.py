@@ -130,7 +130,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         pricing_page = PricingSettingsPage()
         self.assertEqual(
             pricing_page.total_price_result.text(),
-            "Save",
+            "—",
         )
         pricing_page.moisture_effect_slider.setValue(35)
         self.assertEqual(pricing_page.moisture_effect_label.text(), "35%")
@@ -147,7 +147,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.unit_price_result.text(), "P 178.00 / kg")
         self.assertEqual(
             page.total_price_result.text(),
-            "TOTAL PRICE: P 1,016,202.00",
+            "P 1,016,202.00",
         )
         page.deleteLater()
 
@@ -452,11 +452,11 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(len(window.menu_buttons), 2)
         self.assertEqual(
             window.menu_buttons[0].text().strip(),
-            "▦   Dashboard",
+            "Dashboard",
         )
         self.assertEqual(
             window.menu_buttons[1].text().strip(),
-            "¤   Pricing Settings",
+            "Pricing Settings",
         )
         window.change_page(1)
         self.assertEqual(window.pages.currentIndex(), 1)

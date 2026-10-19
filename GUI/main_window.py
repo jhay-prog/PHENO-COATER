@@ -75,8 +75,8 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(logo_subtitle)
         sidebar_layout.addSpacing(30)
 
-        self.dashboard_button = self.create_menu_button('▦', 'Dashboard')
-        self.pricing_button = self.create_menu_button('¤', 'Pricing Settings')
+        self.dashboard_button = self.create_menu_button('Dashboard')
+        self.pricing_button = self.create_menu_button('Pricing Settings')
         self.menu_buttons = [self.dashboard_button, self.pricing_button]
 
         for button in self.menu_buttons:
@@ -219,8 +219,8 @@ class MainWindow(QMainWindow):
             padding: 10px;
         """)
 
-    def create_menu_button(self, icon, label):
-        button = AnimatedButton(f'{icon}   {label}')
+    def create_menu_button(self, label):
+        button = AnimatedButton(label)
         button.setProperty('class', 'menu_button')
         button.setObjectName('menu_button')
         return button
