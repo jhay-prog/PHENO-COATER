@@ -1,12 +1,14 @@
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QLocale, Qt
+from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
-    QDoubleSpinBox,
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -18,6 +20,7 @@ class PricingSettingsPage(QWidget):
         super().__init__()
         self.setObjectName("pricing_settings_page")
         self.permission_check = permission_check
+        self.inputs_saved = False
         self._setup_ui()
         self._update_calculation()
 
@@ -29,15 +32,15 @@ class PricingSettingsPage(QWidget):
         weight_kg,
         moisture_percent,
     ):
-        values = (price_per_kilo, moisture_score, pns_score, weight_kg)
+        values = (price_per_kilo, moisture_score, pns_score)
         if any(value is None for value in values):
             return None
         if (
             price_per_kilo < 0
             or not 0 <= moisture_score <= 100
             or not 0 <= pns_score <= 100
-            or weight_kg < 0
             or not 0 <= moisture_percent <= 100
+            or (weight_kg is not None and weight_kg < 0)
         ):
             raise ValueError("Pricing inputs are outside their valid ranges.")
 
@@ -51,9 +54,11 @@ class PricingSettingsPage(QWidget):
         price_per_kilo_result = (
             base_price * quality_score / Decimal(100)
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        total_price = (
-            price_per_kilo_result * Decimal(str(weight_kg))
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total_price = None
+        if weight_kg is not None:
+            total_price = (
+                price_per_kilo_result * Decimal(str(weight_kg))
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         return {
             "quality_score": quality_score.quantize(
                 Decimal("0.01"),
@@ -65,15 +70,15 @@ class PricingSettingsPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 28, 32, 32)
-        layout.setSpacing(20)
+        layout.setContentsMargins(36, 30, 36, 34)
+        layout.setSpacing(22)
 
         header = QVBoxLayout()
-        header.setSpacing(6)
+        header.setSpacing(8)
         title = QLabel("Pricing settings")
         title.setObjectName("page_title")
         description = QLabel(
-            "Configure cacao pricing and estimate a batch value from its quality scores."
+            "Configure cacao pricing and calculate a batch result from its quality scores."
         )
         description.setObjectName("settings_description")
         header.addWidget(title)
@@ -87,17 +92,22 @@ class PricingSettingsPage(QWidget):
 
         base_form = QFormLayout()
         base_form.setHorizontalSpacing(18)
-        base_form.setVerticalSpacing(12)
-        self.base_price_input = QDoubleSpinBox()
+        base_form.setVerticalSpacing(15)
+        base_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        self.base_price_input = self._create_numeric_input(
+            "pricing_base_price_input",
+            0,
+            1_000_000_000,
+            2,
+            "Enter base price",
+        )
         self.base_price_input.setObjectName("pricing_base_price_input")
-        self.base_price_input.setRange(0, 1_000_000_000)
-        self.base_price_input.setDecimals(2)
-        self.base_price_input.setSpecialValueText("Not set")
-        self.base_price_input.setSuffix(" pesos/kg")
-        self.base_price_input.valueChanged.connect(self._update_calculation)
+        self.base_price_input.textChanged.connect(self._inputs_changed)
         base_form.addRow(
             self._create_form_label("Base price per kilo"),
-            self.base_price_input,
+            self._input_with_suffix(self.base_price_input, "pesos/kg"),
         )
         controls_layout.addLayout(base_form)
 
@@ -122,9 +132,7 @@ class PricingSettingsPage(QWidget):
         self.moisture_effect_slider.valueChanged.connect(
             self._update_effect_labels
         )
-        self.moisture_effect_slider.valueChanged.connect(
-            self._update_calculation
-        )
+        self.moisture_effect_slider.valueChanged.connect(self._inputs_changed)
         controls_layout.addWidget(self.moisture_effect_slider)
 
         pns_effect_row = QHBoxLayout()
@@ -144,13 +152,19 @@ class PricingSettingsPage(QWidget):
         pns_note.setObjectName("pricing_note")
         pns_note.setWordWrap(True)
         controls_layout.addWidget(pns_note)
+
+        self.save_inputs_button = QPushButton("Save Inputs")
+        self.save_inputs_button.setObjectName("pricing_save_inputs_button")
+        self.save_inputs_button.clicked.connect(self.save_inputs)
+        controls_layout.addWidget(self.save_inputs_button)
+
         panels.addWidget(controls_panel, 1)
 
-        result_panel = self._create_panel("Batch price estimate")
+        result_panel = self._create_panel("Price Result")
         result_layout = result_panel.layout()
         input_note = QLabel(
-            "Enter inspection scores and the current batch weight to calculate "
-            "an estimate."
+            "Enter the quality scores and batch weight. Weight defaults to "
+            "1 kg for testing."
         )
         input_note.setObjectName("pricing_note")
         input_note.setWordWrap(True)
@@ -158,32 +172,49 @@ class PricingSettingsPage(QWidget):
 
         value_form = QFormLayout()
         value_form.setHorizontalSpacing(18)
-        value_form.setVerticalSpacing(12)
-        self.moisture_score_input = self._create_score_input()
+        value_form.setVerticalSpacing(15)
+        value_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        self.weight_input = self._create_numeric_input(
+            "pricing_weight_input",
+            0,
+            1_000_000_000,
+            3,
+            "Enter weight",
+        )
+        self.weight_input.setText("1.000")
+        self.weight_input.setAccessibleName("Current batch weight in kilograms")
+        self.weight_input.textChanged.connect(self._inputs_changed)
+        self.moisture_score_input = self._create_numeric_input(
+            "pricing_moisture_score_input",
+            0,
+            100,
+            2,
+            "Enter score",
+        )
         self.moisture_score_input.setObjectName("pricing_moisture_score_input")
-        self.pns_score_input = self._create_score_input()
+        self.pns_score_input = self._create_numeric_input(
+            "pricing_pns_score_input",
+            0,
+            100,
+            2,
+            "Enter score",
+        )
         self.pns_score_input.setObjectName("pricing_pns_score_input")
-        self.weight_input = QDoubleSpinBox()
-        self.weight_input.setObjectName("pricing_weight_input")
-        self.weight_input.setRange(-1, 1_000_000_000)
-        self.weight_input.setDecimals(3)
-        self.weight_input.setSpecialValueText("Not entered")
-        self.weight_input.setValue(-1)
-        self.weight_input.setSuffix(" kg")
-        self.moisture_score_input.valueChanged.connect(self._update_calculation)
-        self.pns_score_input.valueChanged.connect(self._update_calculation)
-        self.weight_input.valueChanged.connect(self._update_calculation)
+        self.moisture_score_input.textChanged.connect(self._inputs_changed)
+        self.pns_score_input.textChanged.connect(self._inputs_changed)
+        value_form.addRow(
+            self._create_form_label("Current batch weight"),
+            self._input_with_suffix(self.weight_input, "kg"),
+        )
         value_form.addRow(
             self._create_form_label("Moisture score"),
-            self.moisture_score_input,
+            self._input_with_suffix(self.moisture_score_input, "/ 100"),
         )
         value_form.addRow(
             self._create_form_label("PNS grade score"),
-            self.pns_score_input,
-        )
-        value_form.addRow(
-            self._create_form_label("Batch weight"),
-            self.weight_input,
+            self._input_with_suffix(self.pns_score_input, "/ 100"),
         )
         result_layout.addLayout(value_form)
 
@@ -203,6 +234,7 @@ class PricingSettingsPage(QWidget):
             result_layout,
             "Total batch price",
             prominent=True,
+            initial_value="Save inputs to display total price",
         )
         panels.addWidget(result_panel, 1)
         layout.addLayout(panels)
@@ -215,22 +247,12 @@ class PricingSettingsPage(QWidget):
         return label
 
     @staticmethod
-    def _create_score_input():
-        score_input = QDoubleSpinBox()
-        score_input.setRange(-1, 100)
-        score_input.setDecimals(0)
-        score_input.setSpecialValueText("Not entered")
-        score_input.setValue(-1)
-        score_input.setSuffix(" / 100")
-        return score_input
-
-    @staticmethod
     def _create_panel(title):
         panel = QFrame()
         panel.setObjectName("pricing_panel")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(22, 20, 22, 22)
-        panel_layout.setSpacing(16)
+        panel_layout.setContentsMargins(24, 22, 24, 24)
+        panel_layout.setSpacing(18)
         heading = QLabel(title)
         heading.setObjectName("pricing_panel_heading")
         heading.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -238,14 +260,55 @@ class PricingSettingsPage(QWidget):
         return panel
 
     @staticmethod
-    def _add_result_row(layout, title, prominent=False):
+    def _create_numeric_input(object_name, minimum, maximum, decimals, placeholder):
+        numeric_input = QLineEdit()
+        numeric_input.setObjectName(object_name)
+        numeric_input.setPlaceholderText(placeholder)
+        validator = QDoubleValidator(
+            minimum,
+            maximum,
+            decimals,
+            numeric_input,
+        )
+        validator.setLocale(QLocale.c())
+        validator.setNotation(QDoubleValidator.Notation.StandardNotation)
+        numeric_input.setValidator(validator)
+        return numeric_input
+
+    @staticmethod
+    def _input_with_suffix(numeric_input, suffix):
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        row.addWidget(numeric_input, 1)
+        suffix_label = QLabel(suffix)
+        suffix_label.setObjectName("pricing_input_suffix")
+        row.addWidget(suffix_label)
+        return container
+
+    @staticmethod
+    def _add_result_row(
+        layout,
+        title,
+        prominent=False,
+        initial_value="—",
+    ):
         name = QLabel(title)
         name.setObjectName("pricing_result_label")
-        value = QLabel("—")
+        value = QLabel(initial_value)
         value.setObjectName(
             "pricing_total_result" if prominent else "pricing_result_value"
         )
         if prominent:
+            value.setProperty(
+                "result_state",
+                (
+                    "status"
+                    if initial_value.startswith(("Save", "Enter", "Complete"))
+                    else "value"
+                ),
+            )
             layout.addWidget(name)
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(value)
@@ -261,14 +324,41 @@ class PricingSettingsPage(QWidget):
         self.moisture_effect_label.setText(f"{moisture_percent}%")
         self.pns_effect_label.setText(f"{100 - moisture_percent}%")
 
-    def _update_calculation(self, *_args):
+    def _update_calculation(self):
         if self.permission_check is not None and not self.permission_check():
             return
 
         moisture_score = self._score_value(self.moisture_score_input)
         pns_score = self._score_value(self.pns_score_input)
-        weight_kg = self._entered_value(self.weight_input)
         base_price = self._entered_value(self.base_price_input)
+        weight_kg = self._entered_value(self.weight_input)
+        if (
+            base_price is None
+            or base_price > 1_000_000_000
+            or weight_kg is None
+            or weight_kg > 1_000_000_000
+            or moisture_score is None
+            or not 0 <= moisture_score <= 100
+            or pns_score is None
+            or not 0 <= pns_score <= 100
+        ):
+            self.quality_result.setText("—")
+            self.unit_price_result.setText("—")
+            has_entered_values = any(
+                field.text().strip()
+                for field in (
+                    self.base_price_input,
+                    self.moisture_score_input,
+                    self.pns_score_input,
+                )
+            )
+            message = (
+                "Complete all inputs to calculate"
+                if has_entered_values
+                else "Save inputs to display total price"
+            )
+            self._set_total_price_text(message)
+            return
         result = self.calculate_price(
             base_price,
             moisture_score,
@@ -280,22 +370,76 @@ class PricingSettingsPage(QWidget):
             message = "—"
             self.quality_result.setText(message)
             self.unit_price_result.setText(message)
-            self.total_price_result.setText(message)
+            self._set_total_price_text("Complete all inputs to calculate")
             return
 
         self.quality_result.setText(
             f"{result['quality_score']:.2f}%"
         )
         self.unit_price_result.setText(
-            f"P {result['price_per_kilo']:,.2f} / kg"
+            f"₱ {result['price_per_kilo']:,.2f} / kg"
         )
-        self.total_price_result.setText(
-            f"P {result['total_price']:,.2f}"
+        if self.inputs_saved:
+            self._set_total_price_text(
+                f"₱ {result['total_price']:,.2f}"
+            )
+        else:
+            self._set_total_price_text("Save inputs to display total price")
+
+    def _inputs_changed(self):
+        self.inputs_saved = False
+        self._update_calculation()
+
+    def save_inputs(self):
+        if self.permission_check is not None and not self.permission_check():
+            return False
+        base_price = self._entered_value(self.base_price_input)
+        weight_kg = self._entered_value(self.weight_input)
+        moisture_score = self._score_value(self.moisture_score_input)
+        pns_score = self._score_value(self.pns_score_input)
+        if (
+            base_price is None
+            or base_price > 1_000_000_000
+            or weight_kg is None
+            or weight_kg > 1_000_000_000
+            or moisture_score is None
+            or not 0 <= moisture_score <= 100
+            or pns_score is None
+            or not 0 <= pns_score <= 100
+        ):
+            self.inputs_saved = False
+            self._set_total_price_text("Complete all inputs before saving")
+            return False
+        self.inputs_saved = True
+        self._update_calculation()
+        return True
+
+    def _set_total_price_text(self, text):
+        self.total_price_result.setText(text)
+        state = (
+            "status"
+            if text.startswith(("Save", "Complete"))
+            else "value"
         )
+        if self.total_price_result.property("result_state") != state:
+            self.total_price_result.setProperty("result_state", state)
+            self.total_price_result.style().unpolish(
+                self.total_price_result
+            )
+            self.total_price_result.style().polish(
+                self.total_price_result
+            )
 
     @staticmethod
-    def _entered_value(spin_box):
-        return None if spin_box.value() == spin_box.minimum() else spin_box.value()
+    def _entered_value(numeric_input):
+        text = numeric_input.text().strip()
+        if not text:
+            return None
+        try:
+            value = float(text)
+        except ValueError:
+            return None
+        return value if value >= 0 else None
 
     @classmethod
     def _score_value(cls, spin_box):

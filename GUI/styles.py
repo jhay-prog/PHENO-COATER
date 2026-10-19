@@ -136,6 +136,7 @@ QMainWindow#admin_control_panel,
 #pricing_settings_page {
     background-color: #f4f7f5;
     font-family: "Segoe UI";
+    font-size: 14px;
     color: #1d3428;
 }
 
@@ -148,7 +149,7 @@ QMainWindow#admin_control_panel,
 
 #pricing_settings_page #page_title {
     color: #173f2a;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 700;
 }
 
@@ -160,54 +161,53 @@ QMainWindow#admin_control_panel,
 #pricing_panel {
     background-color: #ffffff;
     border: 1px solid #dce5df;
-    border-radius: 16px;
+    border-radius: 14px;
 }
 
 #pricing_panel_heading {
-    background-color: #f0f6f1;
-    border: 1px solid #e0eae2;
-    border-radius: 9px;
+    background-color: #f1f6f2;
+    border: 1px solid #e2ebe4;
+    border-radius: 8px;
     color: #173f2a;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
-    padding: 11px 14px;
+    padding: 12px 15px;
 }
 
 #pricing_section_title {
-    color: #173f2a;
-    font-size: 14px;
+    color: #294d37;
+    font-size: 15px;
     font-weight: 700;
-    padding-top: 4px;
+    padding-top: 6px;
 }
 
 #pricing_control_label,
 #pricing_result_label {
-    color: #435b4d;
-    font-size: 13px;
+    color: #3e5648;
+    font-size: 14px;
     font-weight: 600;
 }
 
 #pricing_form_label {
-    color: #435b4d;
-    font-size: 13px;
+    color: #3e5648;
+    font-size: 14px;
     font-weight: 600;
 }
 
 #pricing_note {
-    color: #68796f;
+    color: #718077;
     font-size: 12px;
-    line-height: 1.4;
 }
 
 #pricing_effect_value {
     color: #287044;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
 }
 
 #pricing_result_value {
     color: #234b33;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
 }
 
@@ -223,22 +223,54 @@ QMainWindow#admin_control_panel,
     border: 1px solid #cfe2d4;
     border-radius: 10px;
     color: #1b5b34;
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 700;
-    padding: 16px 12px;
+    padding: 18px 14px;
+}
+
+#pricing_total_result[result_state="status"] {
+    color: #68796f;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+#pricing_save_inputs_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    border-radius: 7px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 8px 14px;
+    text-align: center;
+}
+
+#pricing_save_inputs_button:hover {
+    background-color: #24643e;
+    border-color: #24643e;
+}
+
+#pricing_save_inputs_button:pressed {
+    background-color: #1f5c38;
+    border-color: #17452b;
 }
 
 QDoubleSpinBox#pricing_base_price_input,
 QDoubleSpinBox#pricing_moisture_score_input,
 QDoubleSpinBox#pricing_pns_score_input,
-QDoubleSpinBox#pricing_weight_input {
+QDoubleSpinBox#pricing_weight_input,
+QLineEdit#pricing_base_price_input,
+QLineEdit#pricing_moisture_score_input,
+QLineEdit#pricing_pns_score_input,
+QLineEdit#pricing_weight_input {
     background-color: #ffffff;
     border: 1px solid #ccd8d0;
     border-radius: 7px;
     color: #20392b;
-    font-size: 13px;
-    min-height: 22px;
-    padding: 7px 9px;
+    font-size: 14px;
+    min-height: 24px;
+    padding: 8px 10px;
     selection-background-color: #cfe5d5;
     selection-color: #173f2a;
 }
@@ -246,15 +278,28 @@ QDoubleSpinBox#pricing_weight_input {
 QDoubleSpinBox#pricing_base_price_input:hover,
 QDoubleSpinBox#pricing_moisture_score_input:hover,
 QDoubleSpinBox#pricing_pns_score_input:hover,
-QDoubleSpinBox#pricing_weight_input:hover {
+QDoubleSpinBox#pricing_weight_input:hover,
+QLineEdit#pricing_base_price_input:hover,
+QLineEdit#pricing_moisture_score_input:hover,
+QLineEdit#pricing_pns_score_input:hover,
+QLineEdit#pricing_weight_input:hover {
     border: 1px solid #86b695;
 }
 
 QDoubleSpinBox#pricing_base_price_input:focus,
 QDoubleSpinBox#pricing_moisture_score_input:focus,
 QDoubleSpinBox#pricing_pns_score_input:focus,
-QDoubleSpinBox#pricing_weight_input:focus {
+QDoubleSpinBox#pricing_weight_input:focus,
+QLineEdit#pricing_base_price_input:focus,
+QLineEdit#pricing_moisture_score_input:focus,
+QLineEdit#pricing_pns_score_input:focus,
+QLineEdit#pricing_weight_input:focus {
     border: 1px solid #43845a;
+}
+
+#pricing_input_suffix {
+    color: #68796f;
+    font-size: 13px;
 }
 
 QSlider#pricing_effect_slider::groove:horizontal {

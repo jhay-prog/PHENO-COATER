@@ -125,13 +125,24 @@ class HardwareCompatibilityTests(unittest.TestCase):
                 moisture_percent=50,
             )
         )
+        result_without_weight = PricingSettingsPage.calculate_price(
+            price_per_kilo=200,
+            moisture_score=88,
+            pns_score=90,
+            weight_kg=None,
+            moisture_percent=50,
+        )
+        self.assertEqual(str(result_without_weight["price_per_kilo"]), "178.00")
+        self.assertIsNone(result_without_weight["total_price"])
 
     def test_pricing_score_weights_always_total_one_hundred_percent(self):
         pricing_page = PricingSettingsPage()
         self.assertEqual(
             pricing_page.total_price_result.text(),
-            "—",
+            "Save inputs to display total price",
         )
+        self.assertEqual(pricing_page.weight_input.text(), "1.000")
+        self.assertEqual(pricing_page.weight_input.validator().decimals(), 3)
         pricing_page.moisture_effect_slider.setValue(35)
         self.assertEqual(pricing_page.moisture_effect_label.text(), "35%")
         self.assertEqual(pricing_page.pns_effect_label.text(), "65%")
@@ -139,15 +150,58 @@ class HardwareCompatibilityTests(unittest.TestCase):
 
     def test_pricing_page_updates_from_entered_values(self):
         page = PricingSettingsPage()
-        page.base_price_input.setValue(200)
-        page.moisture_score_input.setValue(88)
-        page.pns_score_input.setValue(90)
-        page.weight_input.setValue(5709)
+        page.base_price_input.setText("200")
+        page.moisture_score_input.setText("88")
+        page.pns_score_input.setText("90")
         self.assertEqual(page.quality_result.text(), "89.00%")
-        self.assertEqual(page.unit_price_result.text(), "P 178.00 / kg")
+        self.assertEqual(page.unit_price_result.text(), "₱ 178.00 / kg")
         self.assertEqual(
             page.total_price_result.text(),
-            "P 1,016,202.00",
+            "Save inputs to display total price",
+        )
+        page.save_inputs_button.click()
+        self.assertEqual(page.total_price_result.text(), "₱ 178.00")
+        page.base_price_input.setText("250")
+        self.assertEqual(
+            page.total_price_result.text(),
+            "Save inputs to display total price",
+        )
+        page.save_inputs_button.click()
+        self.assertEqual(page.total_price_result.text(), "₱ 222.50")
+        page.deleteLater()
+
+    def test_pricing_score_and_weight_fields_accept_typed_decimal_values(self):
+        page = PricingSettingsPage()
+        page.base_price_input.setText("200.75")
+        page.moisture_score_input.setText("88.5")
+        page.pns_score_input.setText("90.25")
+        page.weight_input.setText("2.5")
+        self.assertEqual(page.base_price_input.text(), "200.75")
+        self.assertEqual(page.base_price_input.validator().decimals(), 2)
+        self.assertEqual(page.weight_input.text(), "2.5")
+        self.assertEqual(page.weight_input.validator().decimals(), 3)
+        self.assertEqual(
+            page.moisture_score_input.validator().decimals(),
+            2,
+        )
+        self.assertEqual(page.pns_score_input.text(), "90.25")
+        self.assertEqual(page.quality_result.text(), "89.38%")
+        self.assertEqual(page.unit_price_result.text(), "₱ 179.42 / kg")
+        self.assertEqual(
+            page.total_price_result.text(),
+            "Save inputs to display total price",
+        )
+        page.save_inputs_button.click()
+        self.assertEqual(page.total_price_result.text(), "₱ 448.55")
+        page.deleteLater()
+
+    def test_pricing_save_inputs_rejects_missing_scores(self):
+        page = PricingSettingsPage()
+        page.base_price_input.setText("200")
+        self.assertFalse(page.save_inputs())
+        self.assertEqual(
+            page.total_price_result.text(),
+            "Complete all inputs before saving",
         )
         page.deleteLater()
 
