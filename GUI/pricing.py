@@ -20,7 +20,7 @@ class PricingSettingsPage(QWidget):
         super().__init__()
         self.setObjectName("pricing_settings_page")
         self.permission_check = permission_check
-        self.inputs_saved = False
+        self.total_price_unlocked = False
         self._setup_ui()
         self._update_calculation()
 
@@ -51,15 +51,32 @@ class PricingSettingsPage(QWidget):
             Decimal(str(moisture_score)) * moisture_weight
             + Decimal(str(pns_score)) * pns_weight
         ) / Decimal(100)
+        moisture_contribution = (
+            Decimal(str(moisture_score)) * moisture_weight / Decimal(100)
+        )
+        pns_contribution = (
+            Decimal(str(pns_score)) * pns_weight / Decimal(100)
+        )
         price_per_kilo_result = (
             base_price * quality_score / Decimal(100)
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         total_price = None
         if weight_kg is not None:
             total_price = (
-                price_per_kilo_result * Decimal(str(weight_kg))
+                base_price
+                * Decimal(str(weight_kg))
+                * quality_score
+                / Decimal(100)
             ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         return {
+            "moisture_contribution": moisture_contribution.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            ),
+            "pns_contribution": pns_contribution.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            ),
             "quality_score": quality_score.quantize(
                 Decimal("0.01"),
                 rounding=ROUND_HALF_UP,
@@ -116,7 +133,7 @@ class PricingSettingsPage(QWidget):
         controls_layout.addWidget(effect_title)
 
         moisture_effect_row = QHBoxLayout()
-        moisture_effect_label = QLabel("Moisture score")
+        moisture_effect_label = QLabel("Moisture Content Price Percent Effect")
         moisture_effect_label.setObjectName("pricing_control_label")
         self.moisture_effect_label = QLabel("50%")
         self.moisture_effect_label.setObjectName("pricing_effect_value")
@@ -136,7 +153,7 @@ class PricingSettingsPage(QWidget):
         controls_layout.addWidget(self.moisture_effect_slider)
 
         pns_effect_row = QHBoxLayout()
-        pns_effect_label = QLabel("PNS grade score")
+        pns_effect_label = QLabel("PNS Grade Price Percent Effect")
         pns_effect_label.setObjectName("pricing_control_label")
         self.pns_effect_label = QLabel("50%")
         self.pns_effect_label.setObjectName("pricing_effect_value")
@@ -155,7 +172,7 @@ class PricingSettingsPage(QWidget):
 
         self.save_inputs_button = QPushButton("Save Inputs")
         self.save_inputs_button.setObjectName("pricing_save_inputs_button")
-        self.save_inputs_button.clicked.connect(self.save_inputs)
+        self.save_inputs_button.clicked.connect(self._save_inputs)
         controls_layout.addWidget(self.save_inputs_button)
 
         panels.addWidget(controls_panel, 1)
@@ -163,8 +180,8 @@ class PricingSettingsPage(QWidget):
         result_panel = self._create_panel("Price Result")
         result_layout = result_panel.layout()
         input_note = QLabel(
-            "Enter the quality scores and batch weight. Weight defaults to "
-            "1 kg for testing."
+            "Enter the quality scores. Batch weight is a test input, defaulting "
+            "to 1 kg; live load-cell readings are not available."
         )
         input_note.setObjectName("pricing_note")
         input_note.setWordWrap(True)
@@ -205,7 +222,7 @@ class PricingSettingsPage(QWidget):
         self.moisture_score_input.textChanged.connect(self._inputs_changed)
         self.pns_score_input.textChanged.connect(self._inputs_changed)
         value_form.addRow(
-            self._create_form_label("Current batch weight"),
+            self._create_form_label("Current Weight (kg)"),
             self._input_with_suffix(self.weight_input, "kg"),
         )
         value_form.addRow(
@@ -222,19 +239,23 @@ class PricingSettingsPage(QWidget):
         results_divider.setObjectName("pricing_results_divider")
         results_divider.setFrameShape(QFrame.Shape.HLine)
         result_layout.addWidget(results_divider)
-        self.quality_result = self._add_result_row(
+        self.moisture_contribution_result = self._add_result_row(
             result_layout,
-            "Weighted quality score",
+            "Overall Moisture Score",
+        )
+        self.pns_contribution_result = self._add_result_row(
+            result_layout,
+            "Overall PNS Score",
         )
         self.unit_price_result = self._add_result_row(
             result_layout,
-            "Calculated price per kilo",
+            "Price Per Kilo",
         )
         self.total_price_result = self._add_result_row(
             result_layout,
             "Total batch price",
             prominent=True,
-            initial_value="Save inputs to display total price",
+            initial_value="—",
         )
         panels.addWidget(result_panel, 1)
         layout.addLayout(panels)
@@ -342,22 +363,14 @@ class PricingSettingsPage(QWidget):
             or pns_score is None
             or not 0 <= pns_score <= 100
         ):
-            self.quality_result.setText("—")
+            self.moisture_contribution_result.setText("—")
+            self.pns_contribution_result.setText("—")
             self.unit_price_result.setText("—")
-            has_entered_values = any(
-                field.text().strip()
-                for field in (
-                    self.base_price_input,
-                    self.moisture_score_input,
-                    self.pns_score_input,
-                )
+            self._set_total_price_text(
+                "Enter valid inputs to calculate"
+                if self.total_price_unlocked
+                else "—"
             )
-            message = (
-                "Complete all inputs to calculate"
-                if has_entered_values
-                else "Save inputs to display total price"
-            )
-            self._set_total_price_text(message)
             return
         result = self.calculate_price(
             base_price,
@@ -368,57 +381,44 @@ class PricingSettingsPage(QWidget):
         )
         if result is None:
             message = "—"
-            self.quality_result.setText(message)
+            self.moisture_contribution_result.setText(message)
+            self.pns_contribution_result.setText(message)
             self.unit_price_result.setText(message)
-            self._set_total_price_text("Complete all inputs to calculate")
+            self._set_total_price_text(
+                "Enter valid inputs to calculate"
+                if self.total_price_unlocked
+                else "—"
+            )
             return
 
-        self.quality_result.setText(
-            f"{result['quality_score']:.2f}%"
+        self.moisture_contribution_result.setText(
+            f"{result['moisture_contribution']:.2f}"
+        )
+        self.pns_contribution_result.setText(
+            f"{result['pns_contribution']:.2f}"
         )
         self.unit_price_result.setText(
             f"₱ {result['price_per_kilo']:,.2f} / kg"
         )
-        if self.inputs_saved:
-            self._set_total_price_text(
-                f"₱ {result['total_price']:,.2f}"
-            )
+        if not self.total_price_unlocked:
+            self._set_total_price_text("—")
+        elif result["total_price"] is None:
+            self._set_total_price_text("Weight unavailable")
         else:
-            self._set_total_price_text("Save inputs to display total price")
+            self._set_total_price_text(f"₱ {result['total_price']:,.2f}")
+
+    def _save_inputs(self):
+        self.total_price_unlocked = True
+        self._update_calculation()
 
     def _inputs_changed(self):
-        self.inputs_saved = False
         self._update_calculation()
-
-    def save_inputs(self):
-        if self.permission_check is not None and not self.permission_check():
-            return False
-        base_price = self._entered_value(self.base_price_input)
-        weight_kg = self._entered_value(self.weight_input)
-        moisture_score = self._score_value(self.moisture_score_input)
-        pns_score = self._score_value(self.pns_score_input)
-        if (
-            base_price is None
-            or base_price > 1_000_000_000
-            or weight_kg is None
-            or weight_kg > 1_000_000_000
-            or moisture_score is None
-            or not 0 <= moisture_score <= 100
-            or pns_score is None
-            or not 0 <= pns_score <= 100
-        ):
-            self.inputs_saved = False
-            self._set_total_price_text("Complete all inputs before saving")
-            return False
-        self.inputs_saved = True
-        self._update_calculation()
-        return True
 
     def _set_total_price_text(self, text):
         self.total_price_result.setText(text)
         state = (
             "status"
-            if text.startswith(("Save", "Complete"))
+            if text.startswith(("Enter", "Weight"))
             else "value"
         )
         if self.total_price_result.property("result_state") != state:

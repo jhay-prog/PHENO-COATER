@@ -33,11 +33,12 @@ authenticated Admin Control Panel. Logout returns to the dashboard and revokes
 the in-memory administrator session; it does not close the shared camera or
 Arduino connections.
 
-Pricing Settings calculates an estimate from a base price, moisture score, PNS
-score, and batch weight. The two score-effect percentages always total 100%.
-Because the application does not currently receive these validated scores and
-batch weight from its hardware, the fields are manual and are not prefilled
-with example values.
+Pricing Settings calculates weighted moisture/PNS scores and the total batch
+price automatically from the entered base price and scores, the two effect
+percentages (which always total 100%), and a batch weight in kilograms. Live
+load-cell readings and automatically scored moisture/PNS values are not
+currently available. The score fields remain manual, and the batch-weight
+field is a clearly labeled 1 kg test input until hardware support is added.
 
 The Admin Control Panel shares the existing dashboard hardware controller.
 Camera preview and AS7265X serial data are reused rather than opening another
