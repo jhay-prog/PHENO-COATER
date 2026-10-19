@@ -11,10 +11,11 @@ except ImportError:
 
 
 class SettingsPage(QWidget):
-    def __init__(self, camera_controller=None):
+    def __init__(self, camera_controller=None, permission_check=None):
         super().__init__()
         self.setObjectName("settings_page")
         self.camera_controller = camera_controller
+        self.permission_check = permission_check
         self.saved_nir_scan_delay_ms = getattr(
             camera_controller,
             "nir_scan_delay_ms",
@@ -89,8 +90,11 @@ class SettingsPage(QWidget):
         self.camera_source_input.setText(camera_name)
 
     def set_nir_scan_delay(self, delay_ms):
+        if self.permission_check is not None and not self.permission_check():
+            return False
         if self.camera_controller is not None:
             self.camera_controller.set_nir_scan_delay(delay_ms)
+        return True
 
     def commit_nir_scan_delay(self):
         text = self.scan_delay_input.text()
@@ -178,6 +182,9 @@ class SettingsPage(QWidget):
         save_state.setObjectName("settings_save_state")
 
         def reset_settings():
+            if self.permission_check is not None and not self.permission_check():
+                save_state.setText("Administrator access required")
+                return
             self.refresh_live_settings()
             scan_delay_input.setText("0")
             model_input.clear()
@@ -186,6 +193,9 @@ class SettingsPage(QWidget):
             save_state.setText("Settings reset")
 
         def save_settings():
+            if self.permission_check is not None and not self.permission_check():
+                save_state.setText("Administrator access required")
+                return
             text = scan_delay_input.text()
             if not text.isdigit() or int(text) > 60000:
                 save_state.setText("Enter a delay from 0 to 60000 ms")

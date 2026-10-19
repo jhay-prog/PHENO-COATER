@@ -15,7 +15,9 @@ class ResultsPage(QWidget):
 
         title_label = QLabel("Results")
         title_label.setObjectName("page_title")
-        subtitle = QLabel("Seed grading summary and acceptance history")
+        subtitle = QLabel(
+            "Inspection history is empty; totals appear after results are recorded."
+        )
         subtitle.setObjectName("settings_description")
         layout.addWidget(title_label)
         layout.addWidget(subtitle)
@@ -24,8 +26,8 @@ class ResultsPage(QWidget):
         summary_cards.setHorizontalSpacing(15)
         summary_cards.setVerticalSpacing(15)
         for index, (label, value) in enumerate([
-            ("Total seeds", "0"),
-            ("Foreign Objects", "0"),
+            ("Total seeds", "No data"),
+            ("Foreign Objects", "No data"),
         ]):
             card = QFrame()
             card.setObjectName("settings_panel")

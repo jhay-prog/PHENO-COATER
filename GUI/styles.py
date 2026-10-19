@@ -49,7 +49,7 @@ QMainWindow {
 
 QWidget {
     font-family: "Segoe UI";
-    color: #202124;
+    color: #173f2a;
 }
 
 /* Sidebar */
@@ -83,6 +83,387 @@ QPushButton {
     font-family: "Segoe UI Symbol", "Segoe UI";
     font-size: 14px;
     min-height: 42px;
+}
+
+#admin_button {
+    color: #173f2a;
+    background-color: #f4f6f8;
+    border: 1px solid #d8dee3;
+    border-radius: 8px;
+    font-family: "Segoe UI Symbol", "Segoe UI";
+    font-size: 19px;
+    min-width: 42px;
+    max-width: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    padding: 0;
+    text-align: center;
+}
+
+#admin_button:hover {
+    background-color: #e8f5e9;
+}
+
+QMainWindow#admin_control_panel,
+#admin_panel_central,
+#admin_panel_content,
+#admin_pages,
+#admin_page_scroll,
+#admin_page_scroll QWidget#qt_scrollarea_viewport,
+#admin_system_overview_page,
+#admin_process_monitor_page {
+    background-color: #f4f6f8;
+}
+
+#admin_account_creation_page {
+    background-color: #ffffff;
+}
+
+#pricing_settings_page {
+    background-color: #f5faf6;
+}
+
+#pricing_scroll,
+#pricing_scroll QWidget#qt_scrollarea_viewport,
+#pricing_scroll > QWidget {
+    background-color: #f5faf6;
+    border: none;
+}
+
+#pricing_panel {
+    background-color: #ffffff;
+    border: 1px solid #d5e6d9;
+    border-radius: 14px;
+}
+
+#pricing_panel_heading {
+    background-color: #eaf7ee;
+    border: 1px solid #cfe7d5;
+    border-radius: 10px;
+    color: #173f2a;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px;
+}
+
+#pricing_section_title {
+    color: #173f2a;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+#pricing_control_label,
+#pricing_result_label {
+    color: #355d49;
+    font-weight: 600;
+}
+
+#pricing_note {
+    color: #5b7065;
+    font-size: 12px;
+}
+
+#pricing_effect_value {
+    color: #255e3a;
+    font-weight: 700;
+}
+
+#pricing_result_value,
+#pricing_total_result {
+    color: #173f2a;
+    font-weight: 700;
+}
+
+#pricing_total_result {
+    background-color: #edf9f0;
+    border: 1px solid #b7d8bf;
+    border-radius: 8px;
+    color: #173f2a;
+    font-size: 18px;
+    padding: 12px;
+}
+
+QDoubleSpinBox#pricing_base_price_input,
+QDoubleSpinBox#pricing_moisture_score_input,
+QDoubleSpinBox#pricing_pns_score_input,
+QDoubleSpinBox#pricing_weight_input {
+    background-color: #ffffff;
+    border: 1px solid #cdded6;
+    border-radius: 8px;
+    color: #173f2a;
+    selection-background-color: #cfe9d6;
+    selection-color: #173f2a;
+}
+
+QDoubleSpinBox#pricing_base_price_input:hover,
+QDoubleSpinBox#pricing_moisture_score_input:hover,
+QDoubleSpinBox#pricing_pns_score_input:hover,
+QDoubleSpinBox#pricing_weight_input:hover {
+    border: 1px solid #9fc7a9;
+}
+
+QSlider#pricing_effect_slider::groove:horizontal {
+    background-color: #dfeee3;
+    border: 1px solid #b5d0bb;
+    border-radius: 5px;
+    height: 10px;
+}
+
+QSlider#pricing_effect_slider::sub-page:horizontal {
+    background-color: #66b67d;
+    border-radius: 5px;
+}
+
+QSlider#pricing_effect_slider::add-page:horizontal {
+    background-color: #e7f3eb;
+    border-radius: 5px;
+}
+
+QSlider#pricing_effect_slider::handle:horizontal {
+    background-color: #2e7d4f;
+    border: 2px solid white;
+    border-radius: 8px;
+    margin: -5px 0;
+    width: 16px;
+}
+
+QScrollArea#admin_page_scroll {
+    border: none;
+}
+
+#admin_sidebar {
+    background-color: #173f2a;
+}
+
+#admin_sidebar #admin_navigation_button {
+    color: #dce9e1;
+    background-color: transparent;
+    font-size: 13px;
+    min-height: 40px;
+}
+
+#admin_sidebar #admin_navigation_button:hover {
+    background-color: #245b3d;
+}
+
+#admin_sidebar #admin_navigation_button:checked {
+    background-color: #2e704b;
+    color: white;
+    font-weight: bold;
+}
+
+#admin_header {
+    background-color: white;
+    border-bottom: 1px solid #dddddd;
+}
+
+#admin_log_output {
+    background-color: white;
+    color: #173f2a;
+    border: 1px solid #e2e5e8;
+    border-radius: 8px;
+    selection-background-color: #dcefe2;
+    selection-color: #173f2a;
+}
+
+QDialog#admin_login_dialog {
+    background-color: #f4f6f8;
+}
+
+QDialog#admin_password_reset_dialog {
+    background-color: #ffffff;
+}
+
+QMessageBox#admin_delete_confirmation_dialog {
+    background-color: #ffffff;
+}
+
+QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_confirm_button {
+    background-color: #d9534f;
+    border: 1px solid #d9534f;
+    color: #ffffff;
+    font-weight: bold;
+    text-align: center;
+}
+
+QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_confirm_button:hover {
+    background-color: #fde9e8;
+    border-color: #e6a09d;
+    color: #8f2925;
+}
+
+QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_cancel_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: #ffffff;
+    font-weight: bold;
+    text-align: center;
+}
+
+QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_cancel_button:hover {
+    background-color: #dcefe2;
+    border-color: #a8d5b5;
+    color: #173f2a;
+}
+
+QDialog#admin_login_dialog QLabel,
+QDialog#admin_password_reset_dialog QLabel,
+QMessageBox#admin_delete_confirmation_dialog QLabel {
+    color: #173f2a;
+    background-color: transparent;
+}
+
+QDialog#admin_password_reset_dialog QLineEdit {
+    color: #173f2a;
+    background-color: #ffffff;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_save_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: #ffffff;
+    font-weight: bold;
+    text-align: center;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_save_button:hover {
+    background-color: #dcefe2;
+    border-color: #a8d5b5;
+    color: #173f2a;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_save_button:pressed {
+    background-color: #1f5c38;
+    border-color: #17452b;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_cancel_button {
+    background-color: #d9534f;
+    border: 1px solid #d9534f;
+    color: #ffffff;
+    font-weight: bold;
+    text-align: center;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_cancel_button:hover {
+    background-color: #fde9e8;
+    border-color: #e6a09d;
+    color: #8f2925;
+}
+
+QDialog#admin_password_reset_dialog QPushButton#admin_password_reset_cancel_button:pressed {
+    background-color: #a83232;
+    border-color: #8f2925;
+}
+
+QCheckBox#admin_show_password_checkbox {
+    background-color: transparent;
+    color: #173f2a;
+    spacing: 8px;
+}
+
+QPushButton#create_admin_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+QPushButton#create_admin_button:hover {
+    background-color: #dcefe2;
+    border-color: #a8d5b5;
+    color: #173f2a;
+}
+
+QPushButton#create_admin_button:pressed {
+    background-color: #1f5c38;
+    border-color: #17452b;
+    padding-top: 13px;
+    padding-bottom: 11px;
+}
+
+#admin_accounts_heading {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+QFrame#admin_account_card {
+    background-color: #ffffff;
+    border: 1px solid #d8dee3;
+    border-radius: 8px;
+}
+
+QFrame#admin_account_card QLabel {
+    background-color: transparent;
+}
+
+#admin_account_username {
+    font-weight: bold;
+}
+
+#admin_account_role,
+#admin_accounts_empty {
+    color: #6b7280;
+}
+
+QToolButton#admin_account_toggle_button,
+QToolButton#admin_account_delete_button,
+QToolButton#admin_account_reset_password_button {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 4px;
+    border: 1px solid #cfd5da;
+    border-radius: 6px;
+    background-color: #ffffff;
+}
+
+QToolButton#admin_account_toggle_button:hover {
+    background-color: #dcefe2;
+}
+
+QToolButton#admin_account_delete_button:hover {
+    background-color: #fde9e8;
+}
+
+QToolButton#admin_account_reset_password_button:hover {
+    background-color: #e8f0fe;
+}
+
+QPushButton#admin_login_submit_button,
+QPushButton#admin_logout_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+QPushButton#admin_login_submit_button:hover,
+QPushButton#admin_logout_button:hover {
+    background-color: #24643e;
+}
+
+#admin_sidebar QPushButton#admin_logout_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: white;
+    text-align: center;
+}
+
+#admin_sidebar QPushButton#admin_logout_button:hover {
+    background-color: #24643e;
+}
+
+QPushButton#admin_login_cancel_button {
+    background-color: #e8f5e9;
+    border: 1px solid #a8d5b5;
+    color: #173f2a;
+    text-align: center;
+}
+
+QPushButton#admin_login_cancel_button:hover {
+    background-color: #dcefe2;
 }
 
 QPushButton:hover {

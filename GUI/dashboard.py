@@ -32,6 +32,7 @@ from .animated_button import AnimatedButton
 class Dashboard(QWidget):
 
     camera_status_changed = Signal(str)
+    system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
     servo_sweep_status_received = Signal(int, bool)
@@ -102,8 +103,11 @@ class Dashboard(QWidget):
         if arduino_connected:
             self.read_arduino_messages(arduino_port)
         else:
+            was_connected = self.arduino_serial is not None
             self.close_arduino_serial()
             self.nir_detected = False
+            if was_connected:
+                self.system_log_received.emit("Arduino serial connection lost.")
 
         if arduino_connected:
             self.arduino_status_label.setText("CONNECTED")
@@ -125,10 +129,16 @@ class Dashboard(QWidget):
                     timeout=0.05,
                 )
                 self.arduino_port = port.device
+                self.system_log_received.emit(
+                    f"Arduino serial connected on {port.device}."
+                )
                 QTimer.singleShot(1500, self.initialize_nir_scanner)
-            except (serial.SerialException, OSError):
+            except (serial.SerialException, OSError) as exc:
                 self.arduino_serial = None
                 self.arduino_port = None
+                self.system_log_received.emit(
+                    f"Arduino serial connection failed on {port.device}: {exc}"
+                )
                 return
 
         try:
@@ -146,7 +156,8 @@ class Dashboard(QWidget):
                     self.handle_servo_status(message)
                 if self.is_nir_message(message):
                     self.nir_detected = True
-        except (serial.SerialException, OSError):
+        except (serial.SerialException, OSError) as exc:
+            self.system_log_received.emit(f"Arduino serial read failed: {exc}")
             self.close_arduino_serial()
 
     def set_nir_scanning(self, enabled):
@@ -202,7 +213,8 @@ class Dashboard(QWidget):
             return
         try:
             self.arduino_serial.write(command.encode("ascii"))
-        except (serial.SerialException, OSError):
+        except (serial.SerialException, OSError) as exc:
+            self.system_log_received.emit(f"Arduino serial write failed: {exc}")
             self.close_arduino_serial()
 
     def handle_servo_status(self, message):
@@ -226,7 +238,8 @@ class Dashboard(QWidget):
             self.arduino_serial.write(
                 f"D{self.nir_scan_delay_ms}\n".encode("ascii")
             )
-        except (serial.SerialException, OSError):
+        except (serial.SerialException, OSError) as exc:
+            self.system_log_received.emit(f"NIR scan delay command failed: {exc}")
             self.close_arduino_serial()
 
     def send_nir_scan_command(self):
@@ -235,15 +248,18 @@ class Dashboard(QWidget):
         command = b"S\n" if self.nir_scanning else b"P\n"
         try:
             self.arduino_serial.write(command)
-        except (serial.SerialException, OSError):
+        except (serial.SerialException, OSError) as exc:
+            self.system_log_received.emit(f"NIR scan command failed: {exc}")
             self.close_arduino_serial()
 
     def close_arduino_serial(self):
         if self.arduino_serial is not None:
             try:
                 self.arduino_serial.close()
-            except (serial.SerialException, OSError):
-                pass
+            except (serial.SerialException, OSError) as exc:
+                self.system_log_received.emit(
+                    f"Arduino serial close failed: {exc}"
+                )
         self.arduino_serial = None
         self.arduino_port = None
         self.serial_buffer = ""
@@ -328,6 +344,7 @@ class Dashboard(QWidget):
         self.camera_frame.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def stop_camera(self):
+        was_enabled = self.camera_enabled
         self.camera_enabled = False
         self.camera_timer.stop()
         if self.camera_capture is not None:
@@ -337,6 +354,8 @@ class Dashboard(QWidget):
         self.update_camera_button("Turn Camera On")
         self.update_camera_status("Camera is Off")
         self.update_camera_status_indicator()
+        if was_enabled:
+            self.system_log_received.emit("Camera stream stopped.")
 
     def open_camera(self, source):
         logging = getattr(getattr(cv2, "utils", None), "logging", None)
@@ -363,9 +382,23 @@ class Dashboard(QWidget):
         empty_message = config["empty_message"]
 
         for source in candidates:
-            capture = self.open_camera(source)
+            capture = None
+            try:
+                capture = self.open_camera(source)
+            except (cv2.error, OSError) as exc:
+                self.system_log_received.emit(
+                    f"Camera could not be opened at source {source}: {exc}"
+                )
+                continue
             if capture is not None and capture.isOpened():
-                has_frame, frame = capture.read()
+                try:
+                    has_frame, frame = capture.read()
+                except (cv2.error, OSError) as exc:
+                    self.system_log_received.emit(
+                        f"Camera frame read failed at startup: {exc}"
+                    )
+                    capture.release()
+                    continue
                 if not has_frame or frame is None:
                     capture.release()
                     continue
@@ -379,6 +412,7 @@ class Dashboard(QWidget):
                 self.update_camera_button("Turn Camera Off")
                 self.camera_frame.setText("")
                 self.update_camera_status_indicator()
+                self.system_log_received.emit("Camera stream started.")
                 return
 
             if capture is not None:
@@ -388,6 +422,7 @@ class Dashboard(QWidget):
         self.update_camera_button("Turn Camera On")
         self.update_camera_status(empty_message)
         self.update_camera_status_indicator()
+        self.system_log_received.emit("Camera stream could not be started.")
 
     def toggle_camera(self):
         if self.camera_enabled:
@@ -408,8 +443,14 @@ class Dashboard(QWidget):
             self.update_camera_status_indicator()
             return
 
-        ret, frame = self.camera_capture.read()
+        try:
+            ret, frame = self.camera_capture.read()
+        except (cv2.error, OSError) as exc:
+            self.system_log_received.emit(f"Camera frame read failed: {exc}")
+            self.stop_camera()
+            return
         if not ret or frame is None:
+            self.system_log_received.emit("Camera frame read failed; stream stopped.")
             self.stop_camera()
             return
 
@@ -526,10 +567,10 @@ class Dashboard(QWidget):
         self.cards_layout.setVerticalSpacing(15)
 
         self.cards = [
-            self.create_card("CURRENT SEED", "0", "Seed Number"),
-            self.create_card("WEIGHT", "0", "grams"),
-            self.create_card("MOISTURE", "0", "%"),
-            self.create_card("QUALITY", "Good", "Classification"),
+            self.create_card("CURRENT SEED", "No data", "Seed number"),
+            self.create_card("WEIGHT", "No data", "grams"),
+            self.create_card("MOISTURE", "No data", "%"),
+            self.create_card("QUALITY", "No data", "Classification"),
         ]
         self.card_columns = 1
         self.reflow_cards(self.card_columns)

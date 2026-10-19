@@ -120,7 +120,10 @@ class NIRAnalysisPage(QWidget):
         summary_title = QLabel("Current Reading")
         summary_title.setProperty("class", "section_title")
         summary.addWidget(summary_title)
-        for label, value in [("Moisture Content", "0%"), ("Quality", "Good")]:
+        for label, value in [
+            ("Moisture Content", "Not calculated"),
+            ("Quality", "Not classified"),
+        ]:
             row = QHBoxLayout()
             name = QLabel(label)
             name.setStyleSheet("color: #6b7280;")
@@ -240,4 +243,3 @@ class NIRAnalysisPage(QWidget):
             reading_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setCellWidget(row, column, reading_item)
         self.table.scrollToBottom()
-
