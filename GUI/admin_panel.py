@@ -33,7 +33,6 @@ from .nir_analysis import NIRAnalysisPage
 from .results import ResultsPage
 from .settings import SettingsPage
 from .show_password_checkbox import ShowPasswordCheckBox
-from .servo import ServoPage
 
 
 class AdminPasswordResetDialog(QDialog):
@@ -109,8 +108,8 @@ class SystemOverviewPage(QWidget):
         self.setObjectName("admin_system_overview_page")
         self.dashboard = dashboard
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(18)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         title = QLabel("System Overview")
         title.setObjectName("page_title")
@@ -121,17 +120,32 @@ class SystemOverviewPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(description)
 
+        status_container = QFrame()
+        status_container.setProperty("class", "card")
+        status_container.setObjectName("dashboard_status_panel")
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(12, 12, 12, 12)
+        status_layout.setSpacing(8)
+
+        status_title = QLabel("System Status")
+        status_title.setProperty("class", "section_title")
+        status_title.setObjectName("section_title")
+        status_layout.addWidget(status_title)
+
         self.status_values = {}
-        for name in ("Camera", "Arduino USB serial", "AS7265X sensor"):
+        for name in ("Camera", "Arduino", "NIR Sensor", "Load Cell", "AI Model"):
             row = QHBoxLayout()
             label = QLabel(name)
+            label.setObjectName("dashboard_status_name")
             value = QLabel("Unknown")
-            value.setStyleSheet("font-weight: bold;")
+            value.setObjectName("dashboard_status_value")
             row.addWidget(label)
             row.addStretch()
             row.addWidget(value)
-            layout.addLayout(row)
+            status_layout.addLayout(row)
             self.status_values[name] = value
+        status_layout.addStretch()
+        layout.addWidget(status_container)
         layout.addStretch()
 
         self.refresh_timer = QTimer(self)
@@ -140,24 +154,26 @@ class SystemOverviewPage(QWidget):
         self.refresh_status()
 
     def refresh_status(self):
-        camera_active = (
-            self.dashboard.camera_enabled
-            and self.dashboard.camera_capture is not None
-            and self.dashboard.camera_capture.isOpened()
-        )
-        serial_connection = self.dashboard.arduino_serial
-        serial_active = (
-            serial_connection is not None and serial_connection.is_open
-        )
-        self.status_values["Camera"].setText(
-            "Streaming" if camera_active else "Not streaming"
-        )
-        self.status_values["Arduino USB serial"].setText(
-            "Connected" if serial_active else "Not connected"
-        )
-        self.status_values["AS7265X sensor"].setText(
-            "Data detected" if self.dashboard.nir_detected else "No sensor data"
-        )
+        states = {
+            "Camera": self.dashboard.camera_connected,
+            "Arduino": self.dashboard.arduino_connected,
+            "NIR Sensor": self.dashboard.nir_connected,
+            "Load Cell": False,
+            "AI Model": False,
+        }
+        for name, connected in states.items():
+            value = self.status_values[name]
+            value.setText(
+                ("CONNECTED" if connected else "NOT CONNECTED")
+                if name != "AI Model"
+                else ("READY" if connected else "NOT READY")
+            )
+            value.setProperty(
+                "connection_state",
+                "connected" if connected else "disconnected",
+            )
+            value.style().unpolish(value)
+            value.style().polish(value)
 
 
 class ProcessMonitorPage(QWidget):
@@ -165,8 +181,8 @@ class ProcessMonitorPage(QWidget):
         super().__init__()
         self.setObjectName("admin_process_monitor_page")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(16)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
         title = QLabel("Process Monitor / Debug Logs")
         title.setObjectName("page_title")
         description = QLabel(
@@ -204,8 +220,8 @@ class AdminAccountCreationPage(QWidget):
         self.setObjectName("admin_account_creation_page")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(16)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
         title = QLabel("Create Admin Account")
         title.setObjectName("page_title")
         description = QLabel(
@@ -366,6 +382,8 @@ class AdminAccountCreationPage(QWidget):
                     QStyle.StandardPixmap.SP_DialogDiscardButton
                 )
             )
+            delete_button.style().unpolish(delete_button)
+            delete_button.style().polish(delete_button)
             delete_button.setToolTip(f"Delete {username}")
             delete_button.setAccessibleName(f"Delete admin {username}")
             delete_button.clicked.connect(
@@ -438,6 +456,14 @@ class AdminAccountCreationPage(QWidget):
         confirmation.button(
             QMessageBox.StandardButton.No
         ).setObjectName("admin_delete_cancel_button")
+        confirmation.style().unpolish(confirmation)
+        confirmation.style().polish(confirmation)
+        for button in (
+            confirmation.button(QMessageBox.StandardButton.Yes),
+            confirmation.button(QMessageBox.StandardButton.No),
+        ):
+            button.style().unpolish(button)
+            button.style().polish(button)
         confirmation.setDefaultButton(QMessageBox.StandardButton.No)
         answer = confirmation.exec()
         if answer != QMessageBox.StandardButton.Yes:
@@ -486,7 +512,6 @@ class AdminControlPanel(QMainWindow):
         "System Overview",
         "Camera",
         "NIR Analysis",
-        "Servo Control",
         "Inspection Results",
         "System Settings",
         "Process Monitor / Debug Logs",
@@ -522,18 +547,17 @@ class AdminControlPanel(QMainWindow):
         sidebar.setObjectName("admin_sidebar")
         sidebar.setFixedWidth(245)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(15, 24, 15, 20)
+        sidebar_layout.setContentsMargins(8, 14, 8, 12)
         heading = QLabel("ADMIN CONTROL")
         heading.setObjectName("logo_title")
         heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(heading)
-        sidebar_layout.addSpacing(20)
+        sidebar_layout.addSpacing(10)
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("admin_pages")
         self.camera_page = CameraPage(camera_controller=self.dashboard)
         self.nir_page = NIRAnalysisPage()
-        self.servo_page = ServoPage()
         self.results_page = ResultsPage()
         self.settings_page = SettingsPage(
             self.dashboard,
@@ -543,7 +567,6 @@ class AdminControlPanel(QMainWindow):
             SystemOverviewPage(self.dashboard),
             self.camera_page,
             self.nir_page,
-            self.servo_page,
             self.results_page,
             self.settings_page,
             ProcessMonitorPage(self.dashboard),
@@ -553,13 +576,6 @@ class AdminControlPanel(QMainWindow):
             self.nir_page.append_serial_line
         )
         self.nir_page.scan_requested.connect(self._set_nir_scanning)
-        self.servo_page.angle_requested.connect(self._set_servo_angle)
-        self.servo_page.sweep_config_requested.connect(self._set_servo_sweep_config)
-        self.servo_page.sweep_requested.connect(self._set_servo_sweeping)
-        self.dashboard.servo_status_received.connect(self.servo_page.set_motor_status)
-        self.dashboard.servo_sweep_status_received.connect(
-            self.servo_page.set_sweep_status
-        )
 
         self.navigation_buttons = []
         self.admin_scroll_areas = []
@@ -602,7 +618,7 @@ class AdminControlPanel(QMainWindow):
         header = QWidget()
         header.setObjectName("admin_header")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(24, 10, 24, 10)
+        header_layout.setContentsMargins(12, 6, 12, 6)
         title = QLabel("PhenoCoater Administrator")
         title.setObjectName("page_title")
         header_layout.addWidget(title)
@@ -615,12 +631,10 @@ class AdminControlPanel(QMainWindow):
     def activate_admin_view(self):
         self.session.require_admin()
         self._update_admin_management_access()
-        self.dashboard.set_camera_toggle_button(
-            self.settings_page.camera_toggle_button
+        self.dashboard.set_camera_usage_button(
+            self.settings_page.camera_usage_button
         )
         self.nir_page.set_scanning_state(self.dashboard.nir_scanning)
-        for motor, sweeping in self.dashboard.servo_sweeping.items():
-            self.servo_page.set_sweep_status(motor, sweeping)
 
     def _update_admin_management_access(self):
         can_manage_accounts = self.session.can_create_admin_accounts()
@@ -664,23 +678,6 @@ class AdminControlPanel(QMainWindow):
     def _set_nir_scanning(self, enabled):
         if self._authorize():
             self.dashboard.set_nir_scanning(enabled)
-
-    def _set_servo_angle(self, motor, angle):
-        if self._authorize():
-            self.dashboard.set_servo_angle(motor, angle)
-
-    def _set_servo_sweep_config(self, motor, minimum, maximum, speed):
-        if self._authorize():
-            self.dashboard.set_servo_sweep_config(
-                motor,
-                minimum,
-                maximum,
-                speed,
-            )
-
-    def _set_servo_sweeping(self, motor, enabled):
-        if self._authorize():
-            self.dashboard.set_servo_sweeping(motor, enabled)
 
     def closeEvent(self, event):
         self.logout_requested.emit()

@@ -193,8 +193,8 @@ class ServoPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 22)
-        layout.setSpacing(12)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         title = QLabel("Servo Control")
         title.setObjectName("page_title")
@@ -204,7 +204,7 @@ class ServoPage(QWidget):
         layout.addWidget(subtitle)
 
         self.motor_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-        self.motor_layout.setSpacing(12)
+        self.motor_layout.setSpacing(8)
         self.motor_angle_labels = {}
         self.motor_dials = {}
         self.radars = {}
@@ -218,8 +218,8 @@ class ServoPage(QWidget):
             panel = QWidget()
             panel.setObjectName("servo_motor_panel")
             panel_layout = QVBoxLayout(panel)
-            panel_layout.setContentsMargins(14, 12, 14, 12)
-            panel_layout.setSpacing(6)
+            panel_layout.setContentsMargins(8, 8, 8, 8)
+            panel_layout.setSpacing(4)
 
             heading = QHBoxLayout()
             name = QLabel(f"SERVO {motor}")

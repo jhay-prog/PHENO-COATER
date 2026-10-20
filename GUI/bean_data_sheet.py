@@ -50,8 +50,8 @@ class BeanDataSheetPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(34, 28, 34, 32)
-        layout.setSpacing(18)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         heading = QLabel("Bean Data Sheet")
         heading.setObjectName("bean_sheet_title")
@@ -64,9 +64,9 @@ class BeanDataSheetPage(QWidget):
         layout.addWidget(description)
 
         summary_area = QHBoxLayout()
-        summary_area.setSpacing(12)
+        summary_area.setSpacing(8)
         current_summary_column = QVBoxLayout()
-        current_summary_column.setSpacing(12)
+        current_summary_column.setSpacing(8)
         for title in (
             "Current Bean Number",
             "Current PNS Sample Number",
@@ -80,7 +80,7 @@ class BeanDataSheetPage(QWidget):
         summary_area.addLayout(current_summary_column, 1)
 
         grading_summary_row = QHBoxLayout()
-        grading_summary_row.setSpacing(12)
+        grading_summary_row.setSpacing(8)
         grading_summary_row.addWidget(
             self._create_summary_card(
                 "PNS Grade Summary",
@@ -101,8 +101,8 @@ class BeanDataSheetPage(QWidget):
         table_panel = QFrame()
         table_panel.setObjectName("bean_sheet_table_panel")
         table_layout = QVBoxLayout(table_panel)
-        table_layout.setContentsMargins(18, 16, 18, 18)
-        table_layout.setSpacing(12)
+        table_layout.setContentsMargins(10, 8, 10, 10)
+        table_layout.setSpacing(8)
 
         table_title = QLabel("Data Table")
         table_title.setObjectName("bean_sheet_table_title")
@@ -154,8 +154,8 @@ class BeanDataSheetPage(QWidget):
         card = QFrame()
         card.setObjectName("bean_sheet_summary_card")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(15, 12, 15, 12)
-        card_layout.setSpacing(7)
+        card_layout.setContentsMargins(8, 6, 8, 6)
+        card_layout.setSpacing(4)
 
         title_label = QLabel(title)
         title_label.setObjectName("bean_sheet_summary_title")

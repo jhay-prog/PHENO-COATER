@@ -27,8 +27,12 @@ class SettingsPage(QWidget):
         self.refresh_live_settings()
         self.port_refresh_timer.start(1000)
         if camera_controller is not None:
-            camera_controller.set_camera_toggle_button(self.camera_toggle_button)
-            self.camera_toggle_button.clicked.connect(camera_controller.toggle_camera)
+            camera_controller.set_camera_usage_button(
+                self.camera_usage_button
+            )
+            self.camera_usage_button.toggled.connect(
+                camera_controller.set_camera_usage_enabled
+            )
 
     def refresh_serial_ports(self):
         ports = list(list_ports.comports()) if list_ports is not None else []
@@ -107,8 +111,8 @@ class SettingsPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         header = QHBoxLayout()
         title_column = QVBoxLayout()
@@ -120,15 +124,19 @@ class SettingsPage(QWidget):
         title_column.addWidget(description_label)
         header.addLayout(title_column)
         header.addStretch()
-        camera_toggle_button = AnimatedButton("Turn Camera On")
-        camera_toggle_button.setObjectName("camera_toggle_button")
-        self.camera_toggle_button = camera_toggle_button
-        header.addWidget(camera_toggle_button, 0, Qt.AlignmentFlag.AlignTop)
+        camera_usage_button = AnimatedButton("Camera Usage: Enabled")
+        camera_usage_button.setObjectName("camera_usage_button")
+        camera_usage_button.setCheckable(True)
+        camera_usage_button.setChecked(
+            getattr(self.camera_controller, "camera_usage_enabled", True)
+        )
+        self.camera_usage_button = camera_usage_button
+        header.addWidget(camera_usage_button, 0, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(header)
 
         connection_form = QFormLayout()
-        connection_form.setHorizontalSpacing(25)
-        connection_form.setVerticalSpacing(15)
+        connection_form.setHorizontalSpacing(10)
+        connection_form.setVerticalSpacing(8)
         port_input = QComboBox()
         self.arduino_port_input = port_input
         connection_form.addRow("Arduino", port_input)

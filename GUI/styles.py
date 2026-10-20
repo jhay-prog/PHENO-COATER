@@ -44,7 +44,7 @@ QMainWindow {
 }
 
 #results_page {
-    background-color: #fff9f0;
+    background-color: #f4fbf5;
 }
 
 QWidget {
@@ -432,7 +432,7 @@ QScrollArea#admin_page_scroll {
     color: #dce9e1;
     background-color: transparent;
     font-size: 13px;
-    min-height: 40px;
+    min-height: 36px;
 }
 
 #admin_sidebar #admin_navigation_button:hover {
@@ -546,7 +546,36 @@ QMessageBox#admin_delete_confirmation_dialog {
     background-color: #ffffff;
 }
 
-QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_confirm_button {
+QMessageBox#camera_unavailable_dialog {
+    background-color: #f4fbf5;
+}
+
+QMessageBox#camera_unavailable_dialog QLabel {
+    color: #173f2a;
+    background-color: transparent;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QPushButton#camera_unavailable_ok_button {
+    min-width: 88px;
+    min-height: 36px;
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}
+
+QPushButton#camera_unavailable_ok_button:hover {
+    background-color: #24643e;
+    border-color: #24643e;
+    color: #ffffff;
+}
+
+QPushButton#admin_delete_confirm_button {
     background-color: #d9534f;
     border: 1px solid #d9534f;
     color: #ffffff;
@@ -554,13 +583,13 @@ QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_confirm_bu
     text-align: center;
 }
 
-QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_confirm_button:hover {
-    background-color: #fde9e8;
-    border-color: #e6a09d;
-    color: #8f2925;
+QPushButton#admin_delete_confirm_button:hover {
+    background-color: #b52b27;
+    border-color: #b52b27;
+    color: #ffffff;
 }
 
-QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_cancel_button {
+QPushButton#admin_delete_cancel_button {
     background-color: #2e7d4f;
     border: 1px solid #2e7d4f;
     color: #ffffff;
@@ -568,10 +597,10 @@ QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_cancel_but
     text-align: center;
 }
 
-QMessageBox#admin_delete_confirmation_dialog QPushButton#admin_delete_cancel_button:hover {
-    background-color: #dcefe2;
-    border-color: #a8d5b5;
-    color: #173f2a;
+QPushButton#admin_delete_cancel_button:hover {
+    background-color: #24643e;
+    border-color: #24643e;
+    color: #ffffff;
 }
 
 QDialog#admin_login_dialog QLabel,
@@ -686,6 +715,12 @@ QToolButton#admin_account_reset_password_button {
     background-color: #ffffff;
 }
 
+QToolButton#admin_account_delete_button {
+    color: #b42318;
+    border-color: #d9534f;
+    background-color: #fff5f4;
+}
+
 QToolButton#admin_account_toggle_button:hover {
     background-color: #dcefe2;
 }
@@ -788,6 +823,7 @@ QFrame#dashboard_status_panel {
 
 QFrame#dashboard_metric_card {
     border-top: 3px solid #43845a;
+    border-radius: 12px;
 }
 
 QLabel#card_title {
@@ -803,7 +839,7 @@ QLabel#card_value {
 }
 
 QLabel#card_unit {
-    color: #829087;
+    color: #68796f;
     font-size: 12px;
 }
 
@@ -856,7 +892,7 @@ QLabel#dashboard_status_value[connection_state="disconnected"] {
 }
 
 #servo_status {
-    color: #a26712;
+    color: #2e7d4f;
     font-size: 11px;
     font-weight: bold;
 }
@@ -872,19 +908,19 @@ QDoubleSpinBox {
     background-color: white;
 }
 
-#camera_toggle_button {
+#camera_usage_button {
     background-color: #2e7d4f;
     color: white;
     font-weight: bold;
-    min-width: 140px;
+    min-width: 180px;
 }
 
-#camera_toggle_button[camera_running="true"] {
-    background-color: #d9534f;
+#camera_usage_button[camera_usage_enabled="false"] {
+    background-color: #68796f;
 }
 
-#camera_toggle_button[camera_running="true"]:hover {
-    background-color: #b94340;
+#camera_usage_button[camera_usage_enabled="false"]:hover {
+    background-color: #526158;
 }
 
 #start_capture_button,
@@ -897,7 +933,7 @@ QDoubleSpinBox {
 
 #start_capture_button:pressed,
 #settings_save_button:pressed,
-#camera_toggle_button:pressed {
+#camera_usage_button:pressed {
     background-color: #24643e;
 }
 
@@ -919,7 +955,7 @@ QDoubleSpinBox {
     background-color: #a83232;
 }
 
-#camera_toggle_button:hover {
+#camera_usage_button:hover {
     background-color: #24643e;
 }
 
@@ -983,12 +1019,12 @@ QLabel#camera_frame {
 }
 
 QLabel#main_camera_frame {
-    background-color: #e8f5e9;
-    border: 1px solid #a8d5b5;
+    background-color: #f4fbf5;
+    border: 1px solid #c7dfce;
     border-radius: 12px;
-    color: #2e7d4f;
+    color: #173f2a;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: 700;
     padding: 16px;
     qproperty-wordWrap: true;
 }
@@ -1081,7 +1117,7 @@ QTableWidget#results_table {
 }
 
 .result_warning {
-    color: #d28b00;
+    color: #2e7d4f;
     font-weight: bold;
 }
 

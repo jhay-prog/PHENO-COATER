@@ -56,8 +56,8 @@ class CameraPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         title_label = QLabel("Camera")
         title_label.setObjectName("page_title")
@@ -67,12 +67,12 @@ class CameraPage(QWidget):
         layout.addWidget(subtitle)
 
         top_row = QHBoxLayout()
-        top_row.setSpacing(20)
+        top_row.setSpacing(8)
 
         preview = QWidget()
         preview.setObjectName("settings_panel")
         preview_layout = QVBoxLayout(preview)
-        preview_layout.setContentsMargins(20, 20, 20, 20)
+        preview_layout.setContentsMargins(10, 10, 10, 10)
 
         preview_title = QLabel("Live Camera Feed")
         preview_title.setProperty("class", "section_title")
@@ -89,8 +89,8 @@ class CameraPage(QWidget):
         status_panel = QWidget()
         status_panel.setObjectName("settings_panel")
         status_layout = QVBoxLayout(status_panel)
-        status_layout.setContentsMargins(20, 20, 20, 20)
-        status_layout.setSpacing(12)
+        status_layout.setContentsMargins(10, 10, 10, 10)
+        status_layout.setSpacing(8)
 
         status_title = QLabel("Camera Metrics")
         status_title.setProperty("class", "section_title")
@@ -137,7 +137,7 @@ class CameraPage(QWidget):
 
         self.camera_result_label = QLabel("CAMERA RESULT: NO DETECTION")
         self.camera_result_label.setObjectName("camera_result")
-        self.camera_result_label.setStyleSheet("color: #c0392b; font-weight: bold; font-size: 16px;")
+        self.camera_result_label.setStyleSheet("color: #2e7d4f; font-weight: bold; font-size: 16px;")
         preview_layout.addWidget(self.camera_result_label)
 
         start_btn.clicked.connect(self.start_camera)
@@ -153,11 +153,26 @@ class CameraPage(QWidget):
     def start_camera(self):
         if self.camera_controller is not None:
             if not self.camera_controller.camera_enabled:
-                QMessageBox.warning(
-                    self,
-                    "Camera is Off",
-                    "You need to turn on the camera in Settings before starting capture.",
+                self.camera_controller.start_camera()
+            if not self.camera_controller.camera_enabled:
+                message = (
+                    "Camera use is disabled in System Settings."
+                    if not self.camera_controller.camera_usage_enabled
+                    else "The camera could not be started. Check the camera connection."
                 )
+                warning = QMessageBox(self)
+                warning.setObjectName("camera_unavailable_dialog")
+                warning.setIcon(QMessageBox.Icon.Warning)
+                warning.setWindowTitle("Camera Unavailable")
+                warning.setText(message)
+                warning.setStandardButtons(QMessageBox.StandardButton.Ok)
+                ok_button = warning.button(QMessageBox.StandardButton.Ok)
+                ok_button.setObjectName("camera_unavailable_ok_button")
+                warning.style().unpolish(warning)
+                warning.style().polish(warning)
+                ok_button.style().unpolish(ok_button)
+                ok_button.style().polish(ok_button)
+                warning.exec()
                 return
             if self.camera_timer.isActive():
                 return

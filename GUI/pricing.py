@@ -87,11 +87,11 @@ class PricingSettingsPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(36, 30, 36, 34)
-        layout.setSpacing(22)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(10)
 
         header = QVBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(4)
         title = QLabel("Pricing settings")
         title.setObjectName("page_title")
         description = QLabel(
@@ -103,13 +103,13 @@ class PricingSettingsPage(QWidget):
         layout.addLayout(header)
 
         panels = QHBoxLayout()
-        panels.setSpacing(20)
+        panels.setSpacing(8)
         controls_panel = self._create_panel("Pricing controls")
         controls_layout = controls_panel.layout()
 
         base_form = QFormLayout()
-        base_form.setHorizontalSpacing(18)
-        base_form.setVerticalSpacing(15)
+        base_form.setHorizontalSpacing(10)
+        base_form.setVerticalSpacing(8)
         base_form.setFieldGrowthPolicy(
             QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
         )
@@ -272,8 +272,8 @@ class PricingSettingsPage(QWidget):
         panel = QFrame()
         panel.setObjectName("pricing_panel")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(24, 22, 24, 24)
-        panel_layout.setSpacing(18)
+        panel_layout.setContentsMargins(12, 10, 12, 12)
+        panel_layout.setSpacing(8)
         heading = QLabel(title)
         heading.setObjectName("pricing_panel_heading")
         heading.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)

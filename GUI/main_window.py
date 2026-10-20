@@ -44,6 +44,12 @@ class MainWindow(QMainWindow):
         self.resize(1400, 850)
         self.setMinimumSize(640, 480)
         self.setup_ui()
+        self.dashboard_page.start_system_button.clicked.connect(
+            self.dashboard_page.start_camera
+        )
+        self.dashboard_page.stop_system_button.clicked.connect(
+            self.dashboard_page.stop_camera
+        )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -63,8 +69,8 @@ class MainWindow(QMainWindow):
         sidebar.setObjectName('sidebar')
         sidebar.setFixedWidth(230)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(15, 25, 15, 20)
-        sidebar_layout.setSpacing(8)
+        sidebar_layout.setContentsMargins(8, 14, 8, 12)
+        sidebar_layout.setSpacing(5)
 
         logo_title = QLabel('PHENOCOATER')
         logo_title.setObjectName('logo_title')
@@ -75,7 +81,7 @@ class MainWindow(QMainWindow):
         logo_subtitle.setObjectName('logo_subtitle')
         logo_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(logo_subtitle)
-        sidebar_layout.addSpacing(30)
+        sidebar_layout.addSpacing(12)
 
         self.dashboard_button = self.create_menu_button('Dashboard')
         self.pricing_button = self.create_menu_button('Pricing Settings')
@@ -99,7 +105,7 @@ class MainWindow(QMainWindow):
             color: #c0392b;
             font-size: 12px;
             font-weight: bold;
-            padding: 10px;
+            padding: 4px;
         """)
         sidebar_layout.addWidget(self.status_text)
 
@@ -113,7 +119,7 @@ class MainWindow(QMainWindow):
         header.setObjectName('header')
         header.setFixedHeight(70)
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(25, 10, 25, 10)
+        header_layout.setContentsMargins(12, 6, 12, 6)
 
         page_title = QLabel('PhenoCoater Control Panel')
         page_title.setObjectName('page_title')
@@ -218,7 +224,7 @@ class MainWindow(QMainWindow):
         if self.admin_panel is not None:
             self.admin_panel.deactivate_admin_view()
             self.admin_panel.hide()
-        self.dashboard_page.set_camera_toggle_button(None)
+        self.dashboard_page.set_camera_usage_button(None)
         self.show()
         self.raise_()
         self.activateWindow()

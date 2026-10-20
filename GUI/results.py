@@ -10,8 +10,8 @@ class ResultsPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 25, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(8)
 
         title_label = QLabel("Results")
         title_label.setObjectName("page_title")
@@ -23,8 +23,8 @@ class ResultsPage(QWidget):
         layout.addWidget(subtitle)
 
         summary_cards = QGridLayout()
-        summary_cards.setHorizontalSpacing(15)
-        summary_cards.setVerticalSpacing(15)
+        summary_cards.setHorizontalSpacing(8)
+        summary_cards.setVerticalSpacing(8)
         for index, (label, value) in enumerate([
             ("Total seeds", "No data"),
             ("Foreign Objects", "No data"),
@@ -32,7 +32,7 @@ class ResultsPage(QWidget):
             card = QFrame()
             card.setObjectName("settings_panel")
             card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(18, 18, 18, 18)
+            card_layout.setContentsMargins(10, 8, 10, 8)
             name = QLabel(label)
             name.setStyleSheet("color: #6b7280; font-size: 12px;")
             value_label = QLabel(value)

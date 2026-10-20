@@ -48,7 +48,8 @@ class Dashboard(QWidget):
         self.nir_scan_delay_ms = 0
         self.camera_capture = None
         self.camera_enabled = False
-        self.camera_toggle_button = None
+        self.camera_usage_enabled = True
+        self.camera_usage_button = None
         self.last_frame = None
         self.camera_timer = QTimer(self)
         self.camera_timer.timeout.connect(self.update_camera_feed)
@@ -60,6 +61,9 @@ class Dashboard(QWidget):
         )
         self.arduino_serial = None
         self.arduino_port = None
+        self.camera_connected = False
+        self.arduino_connected = False
+        self.nir_connected = False
         self.serial_buffer = ""
         self.nir_detected = False
         self.nir_scanning = False
@@ -76,7 +80,6 @@ class Dashboard(QWidget):
         }
 
         self.setup_ui()
-        self.update_camera_button_style()
         self.update_camera_status("Camera is Off")
         self.update_camera_status_indicator()
         self.update_arduino_status()
@@ -109,11 +112,7 @@ class Dashboard(QWidget):
             if was_connected:
                 self.system_log_received.emit("Arduino serial connection lost.")
 
-        if arduino_connected:
-            self.arduino_status_label.setText("CONNECTED")
-        else:
-            self.arduino_status_label.setText("NOT CONNECTED")
-        self._set_status_state(self.arduino_status_label, arduino_connected)
+        self.arduino_connected = arduino_connected
         self.update_nir_status()
 
     def read_arduino_messages(self, port):
@@ -273,9 +272,7 @@ class Dashboard(QWidget):
         return "AS7265X READY" in normalized or wavelength_message
 
     def update_nir_status(self):
-        status = "CONNECTED" if self.nir_detected else "NOT CONNECTED"
-        self.nir_status_label.setText(status)
-        self._set_status_state(self.nir_status_label, self.nir_detected)
+        self.nir_connected = self.nir_detected
 
     @staticmethod
     def is_arduino_port(port):
@@ -322,7 +319,10 @@ class Dashboard(QWidget):
             if is_narrow
             else QBoxLayout.Direction.LeftToRight
         )
-        self.camera_frame.setMinimumHeight(180 if is_narrow else 260)
+        preview_width = min(608, max(320, width - 36))
+        preview_height = 180 if is_narrow else 320
+        self.camera_frame.setFixedSize(preview_width, preview_height)
+        self.dashboard_subtitle.setVisible(True)
 
     def reflow_cards(self, columns):
         while self.cards_layout.count():
@@ -349,7 +349,6 @@ class Dashboard(QWidget):
             self.camera_capture.release()
             self.camera_capture = None
         self.last_frame = None
-        self.update_camera_button("Turn Camera On")
         self.update_camera_status("Camera is Off")
         self.update_camera_status_indicator()
         if was_enabled:
@@ -368,6 +367,12 @@ class Dashboard(QWidget):
             logging.setLogLevel(previous_level)
 
     def start_camera(self):
+        if not self.camera_usage_enabled:
+            self.system_log_received.emit(
+                "Camera use is disabled in system settings."
+            )
+            self.update_camera_status("Camera use is disabled")
+            return
         if self.camera_enabled and self.camera_capture is not None:
             return
 
@@ -407,7 +412,6 @@ class Dashboard(QWidget):
                 self.camera_source = source
                 self.camera_enabled = True
                 self.camera_timer.start(30)
-                self.update_camera_button("Turn Camera Off")
                 self.camera_frame.setText("")
                 self.update_camera_status_indicator()
                 self.system_log_received.emit("Camera stream started.")
@@ -417,7 +421,6 @@ class Dashboard(QWidget):
                 capture.release()
 
         self.camera_enabled = False
-        self.update_camera_button("Turn Camera On")
         self.update_camera_status(empty_message)
         self.update_camera_status_indicator()
         self.system_log_received.emit("Camera stream could not be started.")
@@ -433,7 +436,6 @@ class Dashboard(QWidget):
             mode = "Camera"
             message = self.camera_modes.get(mode, self.camera_modes["Camera"])["empty_message"]
             self.update_camera_status(message)
-            self.update_camera_button("Turn Camera On")
             self.camera_enabled = False
             if self.camera_capture is not None:
                 self.camera_capture.release()
@@ -482,30 +484,45 @@ class Dashboard(QWidget):
         self.camera_frame.setPixmap(filled)
         self.camera_frame.setText("")
 
-    def update_camera_button_style(self):
-        if self.camera_toggle_button is None:
+    def update_camera_usage_button(self):
+        if self.camera_usage_button is None:
             return
-        self.camera_toggle_button.setProperty("camera_running", self.camera_enabled)
-        self.camera_toggle_button.style().unpolish(self.camera_toggle_button)
-        self.camera_toggle_button.style().polish(self.camera_toggle_button)
+        self.camera_usage_button.setChecked(self.camera_usage_enabled)
+        self.camera_usage_button.setText(
+            "Camera Usage: Enabled"
+            if self.camera_usage_enabled
+            else "Camera Usage: Disabled"
+        )
+        self.camera_usage_button.setProperty(
+            "camera_usage_enabled",
+            self.camera_usage_enabled,
+        )
+        self.camera_usage_button.style().unpolish(self.camera_usage_button)
+        self.camera_usage_button.style().polish(self.camera_usage_button)
 
-    def set_camera_toggle_button(self, button):
-        self.camera_toggle_button = button
-        self.update_camera_button("Turn Camera Off" if self.camera_enabled else "Turn Camera On")
+    def set_camera_usage_button(self, button):
+        self.camera_usage_button = button
+        self.update_camera_usage_button()
 
-    def update_camera_button(self, text):
-        if self.camera_toggle_button is None:
-            return
-        self.camera_toggle_button.setText(text)
-        self.update_camera_button_style()
+    def set_camera_usage_enabled(self, enabled):
+        self.camera_usage_enabled = bool(enabled)
+        self.update_camera_usage_button()
+        if not self.camera_usage_enabled:
+            self.stop_camera()
 
     def create_card(self, title, value, unit="", choices=None):
         card = QFrame()
         card.setProperty("class", "card")
         card.setObjectName("dashboard_metric_card")
+        card.setMinimumHeight(112)
+        card.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(4)
 
         title_label = QLabel(title)
         title_label.setProperty("class", "card_title")
@@ -536,7 +553,7 @@ class Dashboard(QWidget):
     def setup_ui(self):
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(30, 25, 30, 30)
+        main_layout.setContentsMargins(10, 0, 10, 8)
         main_layout.setSpacing(20)
 
         # --------------------------------
@@ -545,22 +562,35 @@ class Dashboard(QWidget):
 
         title = QLabel("Dashboard")
         title.setObjectName("page_title")
+        title.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
 
         subtitle = QLabel(
             "Real-time cacao seed sorting and grading system"
         )
         subtitle.setObjectName("dashboard_subtitle")
+        subtitle.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+        self.dashboard_subtitle = subtitle
 
-        main_layout.addWidget(title)
-        main_layout.addWidget(subtitle)
+        heading_layout = QVBoxLayout()
+        heading_layout.setContentsMargins(0, 0, 0, 0)
+        heading_layout.setSpacing(0)
+        heading_layout.addWidget(title)
+        heading_layout.addWidget(subtitle)
+        main_layout.addLayout(heading_layout)
 
         # --------------------------------
         # STATUS CARDS
         # --------------------------------
 
         self.cards_layout = QGridLayout()
-        self.cards_layout.setHorizontalSpacing(15)
-        self.cards_layout.setVerticalSpacing(15)
+        self.cards_layout.setHorizontalSpacing(12)
+        self.cards_layout.setVerticalSpacing(12)
 
         self.cards = [
             self.create_card("CURRENT SEED", "No data", "Seed number"),
@@ -573,64 +603,51 @@ class Dashboard(QWidget):
         main_layout.addLayout(self.cards_layout)
 
         # --------------------------------
-        # CAMERA + SYSTEM STATUS
+        # CAMERA
         # --------------------------------
 
         middle_layout = QHBoxLayout()
-        middle_layout.setSpacing(20)
+        middle_layout.setSpacing(4)
         self.middle_layout = middle_layout
 
         # CAMERA
         camera_container = QFrame()
+        self.camera_container = camera_container
         camera_container.setProperty("class", "card")
         camera_container.setObjectName("dashboard_camera_panel")
+        camera_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         camera_layout = QVBoxLayout(camera_container)
-        camera_layout.setContentsMargins(20, 20, 20, 20)
+        camera_layout.setContentsMargins(8, 8, 8, 8)
 
         camera_title = QLabel("Live Camera")
         camera_title.setProperty("class", "section_title")
         camera_title.setObjectName("section_title")
+        camera_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.camera_frame = QLabel("Camera is Off")
         self.camera_frame.setObjectName("camera_frame")
         self.camera_frame.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.camera_frame.setMinimumSize(320, 240)
+        self.camera_frame.setMinimumSize(320, 180)
+        self.camera_frame.setMaximumSize(608, 320)
         self.camera_frame.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
         self.camera_frame.setScaledContents(False)
 
         camera_layout.addWidget(camera_title)
-        camera_layout.addWidget(self.camera_frame)
+        camera_preview_layout = QHBoxLayout()
+        camera_preview_layout.setContentsMargins(0, 0, 0, 30)
+        camera_preview_layout.addStretch()
+        camera_preview_layout.addWidget(self.camera_frame)
+        camera_preview_layout.addStretch()
+        camera_layout.addLayout(camera_preview_layout)
 
-        middle_layout.addWidget(camera_container, 2)
-
-        # SYSTEM STATUS
-        status_container = QFrame()
-        status_container.setProperty("class", "card")
-        status_container.setObjectName("dashboard_status_panel")
-
-        status_layout = QVBoxLayout(status_container)
-        status_layout.setContentsMargins(20, 20, 20, 20)
-        status_layout.setSpacing(15)
-
-        status_title = QLabel("System Status")
-        status_title.setProperty("class", "section_title")
-        status_title.setObjectName("section_title")
-
-        status_layout.addWidget(status_title)
-
-        self.camera_status_label = self.add_status(status_layout, "Camera", "NOT CONNECTED")
-        self.arduino_status_label = self.add_status(status_layout, "Arduino", "NOT CONNECTED")
-        self.nir_status_label = self.add_status(status_layout, "NIR Sensor", "NOT CONNECTED")
-        self.add_status(status_layout, "Load Cell", "NOT CONNECTED")
-        self.add_status(status_layout, "AI Model", "NOT READY")
-
-        status_layout.addStretch()
-
-        middle_layout.addWidget(status_container, 1)
+        middle_layout.addWidget(camera_container, 1)
 
         main_layout.addLayout(middle_layout)
 
@@ -642,9 +659,11 @@ class Dashboard(QWidget):
 
         start_button = AnimatedButton("Start System")
         start_button.setObjectName("start_button")
+        self.start_system_button = start_button
 
         stop_button = AnimatedButton("Stop System")
         stop_button.setObjectName("stop_button")
+        self.stop_system_button = stop_button
         start_button.setMinimumWidth(150)
         stop_button.setMinimumWidth(150)
 
@@ -655,39 +674,7 @@ class Dashboard(QWidget):
         main_layout.addLayout(button_layout)
 
     def update_camera_status_indicator(self):
-        if QMediaDevices.videoInputs():
-            self.camera_status_label.setText("CONNECTED")
-            self._set_status_state(self.camera_status_label, True)
-            self.camera_status_changed.emit("CONNECTED")
-        else:
-            self.camera_status_label.setText("NOT CONNECTED")
-            self._set_status_state(self.camera_status_label, False)
-            self.camera_status_changed.emit("NOT CONNECTED")
-
-    def add_status(self, layout, name, status):
-
-        row = QHBoxLayout()
-        row.setSpacing(10)
-
-        name_label = QLabel(name)
-        name_label.setObjectName("dashboard_status_name")
-
-        status_label = QLabel(status)
-        status_label.setObjectName("dashboard_status_value")
-        self._set_status_state(status_label, False)
-
-        row.addWidget(name_label)
-        row.addStretch()
-        row.addWidget(status_label)
-
-        layout.addLayout(row)
-        return status_label
-
-    @staticmethod
-    def _set_status_state(status_label, connected):
-        status_label.setProperty(
-            "connection_state",
-            "connected" if connected else "disconnected",
+        self.camera_connected = bool(QMediaDevices.videoInputs())
+        self.camera_status_changed.emit(
+            "CONNECTED" if self.camera_connected else "NOT CONNECTED"
         )
-        status_label.style().unpolish(status_label)
-        status_label.style().polish(status_label)
