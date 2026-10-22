@@ -1,8 +1,9 @@
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox, QFrame, QVBoxLayout, QWidget
 from .animated_button import AnimatedButton
+from .ai_model import get_configured_ai_model_path, save_configured_ai_model_path
 
 try:
     from serial.tools import list_ports
@@ -11,6 +12,8 @@ except ImportError:
 
 
 class SettingsPage(QWidget):
+    ai_model_path_changed = Signal()
+
     def __init__(self, camera_controller=None, permission_check=None):
         super().__init__()
         self.setObjectName("settings_page")
@@ -20,6 +23,11 @@ class SettingsPage(QWidget):
             camera_controller,
             "nir_scan_delay_ms",
             0,
+        )
+        self.saved_ai_model_path = getattr(
+            camera_controller,
+            "ai_model_path",
+            get_configured_ai_model_path(),
         )
         self.setup_ui()
         self.port_refresh_timer = QTimer(self)
@@ -156,7 +164,11 @@ class SettingsPage(QWidget):
         self.scan_delay_input = scan_delay_input
         connection_form.addRow("NIR scan delay (ms)", scan_delay_input)
         model_input = QLineEdit()
-        model_input.setPlaceholderText("Path to AI model file")
+        model_input.setPlaceholderText(
+            "Path to AI folder or .pt model file"
+        )
+        model_input.setText(self.saved_ai_model_path)
+        self.ai_model_path_input = model_input
         connection_form.addRow("AI model path", model_input)
         connection_panel = QFrame()
         connection_panel.setObjectName("settings_panel")
@@ -188,6 +200,11 @@ class SettingsPage(QWidget):
         save_button.setObjectName("settings_save_button")
         save_state = QLabel()
         save_state.setObjectName("settings_save_state")
+        if getattr(self.camera_controller, "ai_model_error", ""):
+            save_state.setText(
+                f"AI model not ready: "
+                f"{self.camera_controller.ai_model_error}"
+            )
 
         def reset_settings():
             if self.permission_check is not None and not self.permission_check():
@@ -209,10 +226,34 @@ class SettingsPage(QWidget):
                 save_state.setText("Enter a delay from 0 to 60000 ms")
                 return
             delay_ms = int(text)
+            model_path = model_input.text().strip()
+            configure_model = getattr(
+                self.camera_controller,
+                "set_ai_model_path",
+                None,
+            )
+            if configure_model is not None and not configure_model(model_path):
+                save_state.setText(
+                    f"AI model not ready: "
+                    f"{self.camera_controller.ai_model_error}"
+                )
+                return
+            try:
+                save_configured_ai_model_path(model_path)
+            except OSError as exc:
+                save_state.setText(f"Could not save AI model path: {exc}")
+                return
+
             self.set_nir_scan_delay(delay_ms)
             self.saved_nir_scan_delay_ms = delay_ms
+            self.saved_ai_model_path = model_path
             scan_delay_input.setText(str(delay_ms))
-            save_state.setText("Settings saved")
+            save_state.setText(
+                "Settings saved"
+                if not model_path
+                else "Settings saved; AI model ready"
+            )
+            self.ai_model_path_changed.emit()
 
         reset_button.clicked.connect(reset_settings)
         save_button.clicked.connect(save_settings)

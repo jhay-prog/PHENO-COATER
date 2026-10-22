@@ -2,6 +2,8 @@
 
 import cv2
 
+from .ai_model import get_configured_ai_model_path, load_yolo_model
+
 try:
     import serial
     from serial.tools import list_ports
@@ -23,10 +25,39 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHeaderView,
 )
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtMultimedia import QMediaDevices
 from .animated_button import AnimatedButton
+
+
+class _InferenceSignals(QObject):
+    completed = Signal(int, object, str)
+
+
+class _InferenceTask(QRunnable):
+    def __init__(self, token, model, frame):
+        super().__init__()
+        self.token = token
+        self.model = model
+        self.frame = frame
+        self.signals = _InferenceSignals()
+
+    def run(self):
+        try:
+            results = self.model(self.frame, conf=0.5, verbose=False)
+            result = results[0] if results else None
+            self.signals.completed.emit(
+                self.token,
+                result,
+                "",
+            )
+        except Exception as exc:
+            self.signals.completed.emit(
+                self.token,
+                None,
+                f"AI inference failed: {exc}",
+            )
 
 
 class Dashboard(QWidget):
@@ -51,6 +82,16 @@ class Dashboard(QWidget):
         self.camera_usage_enabled = True
         self.camera_usage_button = None
         self.last_frame = None
+        self.last_ai_frame = None
+        self.last_ai_result = None
+        self.ai_model = None
+        self.ai_model_path = get_configured_ai_model_path()
+        self.ai_model_error = ""
+        self.ai_inference_pool = QThreadPool(self)
+        self.ai_inference_pool.setMaxThreadCount(1)
+        self.ai_inference_busy = False
+        self.ai_inference_token = 0
+        self.ai_inference_task = None
         self.camera_timer = QTimer(self)
         self.camera_timer.timeout.connect(self.update_camera_feed)
         self.arduino_timer = QTimer(self)
@@ -80,6 +121,8 @@ class Dashboard(QWidget):
         }
 
         self.setup_ui()
+        if self.ai_model_path:
+            self.set_ai_model_path(self.ai_model_path, log_result=False)
         self.update_camera_status("Camera is Off")
         self.update_camera_status_indicator()
         self.update_arduino_status()
@@ -344,11 +387,15 @@ class Dashboard(QWidget):
     def stop_camera(self):
         was_enabled = self.camera_enabled
         self.camera_enabled = False
+        self.ai_inference_token += 1
         self.camera_timer.stop()
         if self.camera_capture is not None:
             self.camera_capture.release()
             self.camera_capture = None
         self.last_frame = None
+        self.last_ai_frame = None
+        self.last_ai_result = None
+        self.last_ai_frame = None
         self.update_camera_status("Camera is Off")
         self.update_camera_status_indicator()
         if was_enabled:
@@ -455,8 +502,68 @@ class Dashboard(QWidget):
             return
 
         self.last_frame = frame.copy()
+        if self.ai_model is not None:
+            if not self.ai_inference_busy:
+                self.ai_inference_busy = True
+                task = _InferenceTask(
+                    self.ai_inference_token,
+                    self.ai_model,
+                    frame.copy(),
+                )
+                task.signals.completed.connect(self._on_ai_inference_completed)
+                self.ai_inference_task = task
+                self.ai_inference_pool.start(task)
+            if self.last_ai_result is not None:
+                frame = self.last_ai_result.plot(img=frame)
+        else:
+            self.last_ai_result = None
 
+        self.last_ai_frame = frame.copy() if self.ai_model is not None else None
         self.render_camera_frame(frame)
+
+    def _on_ai_inference_completed(self, token, result, error):
+        self.ai_inference_busy = False
+        self.ai_inference_task = None
+        if token != self.ai_inference_token:
+            return
+        if error:
+            self.ai_model = None
+            self.last_ai_result = None
+            self.last_ai_frame = None
+            self.ai_model_error = error
+            self.system_log_received.emit(error)
+            return
+        self.last_ai_result = result
+
+    def set_ai_model_path(self, model_path, log_result=True):
+        model_path = str(model_path or "").strip()
+        self.ai_inference_token += 1
+        self.last_ai_result = None
+        self.last_ai_frame = None
+        if not model_path:
+            self.ai_model = None
+            self.ai_model_path = ""
+            self.ai_model_error = ""
+            if log_result:
+                self.system_log_received.emit("AI model integration disabled.")
+            return True
+
+        try:
+            model, model_file = load_yolo_model(model_path)
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.ai_model_error = str(exc)
+            if log_result:
+                self.system_log_received.emit(self.ai_model_error)
+            return False
+
+        self.ai_model = model
+        self.ai_model_path = model_path
+        self.ai_model_error = ""
+        if log_result:
+            self.system_log_received.emit(
+                f"AI model loaded from {model_file}."
+            )
+        return True
 
     def render_camera_frame(self, frame):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

@@ -159,7 +159,7 @@ class SystemOverviewPage(QWidget):
             "Arduino": self.dashboard.arduino_connected,
             "NIR Sensor": self.dashboard.nir_connected,
             "Load Cell": False,
-            "AI Model": False,
+            "AI Model": getattr(self.dashboard, "ai_model", None) is not None,
         }
         for name, connected in states.items():
             value = self.status_values[name]
@@ -562,6 +562,9 @@ class AdminControlPanel(QMainWindow):
         self.settings_page = SettingsPage(
             self.dashboard,
             permission_check=lambda: self.session.is_admin,
+        )
+        self.settings_page.ai_model_path_changed.connect(
+            self.camera_page.use_dashboard_model
         )
         pages = [
             SystemOverviewPage(self.dashboard),

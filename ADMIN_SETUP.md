@@ -46,6 +46,15 @@ camera or serial port. Readings that are not received or calculated are shown as
 unavailable; a missing load cell, classification model, or moisture-calibration
 algorithm is not represented by made-up measurements.
 
+To enable live AI detections, open **System Settings**, enter the path to the
+folder containing the model weights (for example, the `PHENO AI` folder with
+`my_model.pt`) or enter the `.pt` file path directly, then select **SAVE
+SETTINGS**. The model is loaded into the shared camera stream, annotated
+detections appear on the main dashboard's **Live Camera**, and the selected
+model path is remembered for later launches. If a folder contains multiple
+`.pt` files, use the full path to the intended model file. An invalid or
+unloadable model is reported in System Settings and the admin process log.
+
 ## Tests
 
 Run the targeted test suite from the repository root:

@@ -1,5 +1,4 @@
 from collections import Counter, deque
-from pathlib import Path
 from time import perf_counter
 
 import cv2
@@ -7,11 +6,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget, QSizePolicy
 from .animated_button import AnimatedButton
-
-try:
-    from ultralytics import YOLO
-except ImportError:  # The GUI remains usable until a model is configured.
-    YOLO = None
+from .ai_model import load_yolo_model
 
 
 CLASS_NAMES = (
@@ -52,7 +47,13 @@ class CameraPage(QWidget):
         self.bean_count = 0
         self.current_bean_id = 0
         self.setup_ui()
-        self.load_model(model_path)
+        if camera_controller is not None and getattr(
+            camera_controller, "ai_model", None
+        ) is not None:
+            self.model = camera_controller.ai_model
+            self.model_path = camera_controller.ai_model_path
+        else:
+            self.load_model(model_path)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -144,11 +145,19 @@ class CameraPage(QWidget):
         stop_btn.clicked.connect(self.stop_camera)
 
     def load_model(self, model_path=None):
-        if YOLO is None or not model_path:
+        if not model_path:
             return
-        model_file = Path(model_path)
-        if model_file.exists():
-            self.model = YOLO(str(model_file))
+        self.model, model_file = load_yolo_model(model_path)
+        self.model_path = str(model_file)
+
+    def use_dashboard_model(self):
+        if self.camera_controller is not None:
+            self.model = getattr(self.camera_controller, "ai_model", None)
+            self.model_path = getattr(
+                self.camera_controller,
+                "ai_model_path",
+                "",
+            )
 
     def start_camera(self):
         if self.camera_controller is not None:
@@ -267,6 +276,13 @@ class CameraPage(QWidget):
             if frame is None:
                 return
             frame = frame.copy()
+            if self.model is not None:
+                self.update_detection(self.camera_controller.last_ai_result)
+                ai_frame = self.camera_controller.last_ai_frame
+                if ai_frame is not None:
+                    frame = ai_frame.copy()
+            else:
+                self.update_detection(None)
         else:
             if self.camera_capture is None or not self.camera_capture.isOpened():
                 self.stop_camera()
@@ -284,7 +300,7 @@ class CameraPage(QWidget):
             self.fps_started_at = perf_counter()
             self.update_camera_metrics()
 
-        if self.model is not None:
+        if self.camera_controller is None and self.model is not None:
             results = self.model(frame, verbose=False)
             result = results[0] if results else None
             self.update_detection(result)
@@ -293,7 +309,7 @@ class CameraPage(QWidget):
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (46, 125, 79), 2)
                 cv2.putText(frame, label, (x1, max(y1 - 10, 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (46, 125, 79), 2)
-        else:
+        elif self.camera_controller is None:
             self.update_detection(None)
 
         self.last_frame = frame.copy()
