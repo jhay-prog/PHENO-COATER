@@ -74,7 +74,7 @@ class BeanDataSheetPage(QWidget):
             "Current Weight",
         ):
             current_summary_column.addWidget(
-                self._create_summary_card(title),
+                self._create_summary_card(title, horizontal=True),
                 1,
             )
         summary_area.addLayout(current_summary_column, 1)
@@ -94,7 +94,7 @@ class BeanDataSheetPage(QWidget):
             1,
         )
         summary_area.addLayout(grading_summary_row, 2)
-        layout.addLayout(summary_area)
+        layout.addLayout(summary_area, 1)
 
         table_panel = QFrame()
         table_panel.setObjectName("bean_sheet_table_panel")
@@ -143,28 +143,60 @@ class BeanDataSheetPage(QWidget):
         self.empty_state.hide()
         table_layout.addWidget(self.empty_state)
 
-        layout.addWidget(table_panel, 1)
+        layout.addWidget(table_panel, 2)
         self.show_table("Beans in 100g Sample")
 
     @staticmethod
-    def _create_summary_card(title, value=""):
+    def _create_summary_card(title, value="", horizontal=False):
         card = QFrame()
         card.setObjectName("bean_sheet_summary_card")
-        card_layout = QVBoxLayout(card)
+        card_layout = QHBoxLayout(card) if horizontal else QVBoxLayout(card)
         card_layout.setContentsMargins(8, 6, 8, 6)
-        card_layout.setSpacing(4)
+        card_layout.setSpacing(10 if horizontal else 4)
 
         title_label = QLabel(title)
-        title_label.setObjectName("bean_sheet_summary_title")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setWordWrap(True)
-        card_layout.addWidget(title_label)
+        title_label.setObjectName(
+            "bean_sheet_current_label"
+            if horizontal
+            else "bean_sheet_summary_title"
+        )
+        title_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft
+            if horizontal
+            else Qt.AlignmentFlag.AlignCenter
+        )
+        title_label.setWordWrap(not horizontal)
+        card_layout.addWidget(
+            title_label,
+            alignment=(
+                Qt.AlignmentFlag.AlignVCenter
+                if horizontal
+                else Qt.AlignmentFlag(0)
+            ),
+        )
+        if horizontal:
+            card_layout.addStretch()
 
         value_label = QLabel(value)
-        value_label.setObjectName("bean_sheet_summary_value")
-        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        value_label.setObjectName(
+            "bean_sheet_current_value"
+            if horizontal
+            else "bean_sheet_summary_value"
+        )
+        value_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight
+            if horizontal
+            else Qt.AlignmentFlag.AlignCenter
+        )
         value_label.setWordWrap(True)
-        card_layout.addWidget(value_label)
+        card_layout.addWidget(
+            value_label,
+            alignment=(
+                Qt.AlignmentFlag.AlignVCenter
+                if horizontal
+                else Qt.AlignmentFlag(0)
+            ),
+        )
         return card
 
     def show_table(self, title):
@@ -176,15 +208,6 @@ class BeanDataSheetPage(QWidget):
         self.data_table.clear()
         self.data_table.setColumnCount(len(columns))
         self.data_table.setHorizontalHeaderLabels(columns)
-        if title == "Beans in 100g Sample":
-            weight_column = columns.index("Accumulated Weight")
-            header_font = self.data_table.horizontalHeaderItem(
-                weight_column
-            ).font()
-            header_font.setPointSizeF(5)
-            self.data_table.horizontalHeaderItem(weight_column).setFont(
-                header_font
-            )
         self.data_table.setRowCount(0)
         self.empty_state.hide()
 

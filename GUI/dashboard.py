@@ -755,7 +755,7 @@ class Dashboard(QWidget):
     def setup_ui(self):
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 0, 10, 8)
+        main_layout.setContentsMargins(14, 12, 14, 14)
         main_layout.setSpacing(20)
 
         # --------------------------------
@@ -781,7 +781,7 @@ class Dashboard(QWidget):
 
         heading_layout = QVBoxLayout()
         heading_layout.setContentsMargins(0, 0, 0, 0)
-        heading_layout.setSpacing(0)
+        heading_layout.setSpacing(4)
         heading_layout.addWidget(title)
         heading_layout.addWidget(subtitle)
         main_layout.addLayout(heading_layout)

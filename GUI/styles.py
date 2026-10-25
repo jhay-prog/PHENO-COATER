@@ -1,5 +1,36 @@
 # styles.py
 
+import re
+
+
+TYPOGRAPHY_SCALE = {
+    "caption": 12,
+    "body": 14,
+    "h3": 16,
+    "h2": 20,
+    "h1": 28,
+}
+
+_FONT_SIZE_SCALE = {
+    10: TYPOGRAPHY_SCALE["caption"],
+    11: TYPOGRAPHY_SCALE["caption"],
+    12: TYPOGRAPHY_SCALE["caption"],
+    13: TYPOGRAPHY_SCALE["body"],
+    14: TYPOGRAPHY_SCALE["body"],
+    15: TYPOGRAPHY_SCALE["h3"],
+    16: TYPOGRAPHY_SCALE["h3"],
+    17: TYPOGRAPHY_SCALE["h3"],
+    18: TYPOGRAPHY_SCALE["h2"],
+    19: TYPOGRAPHY_SCALE["h2"],
+    22: TYPOGRAPHY_SCALE["h1"],
+    24: TYPOGRAPHY_SCALE["h1"],
+    25: TYPOGRAPHY_SCALE["h1"],
+    28: TYPOGRAPHY_SCALE["h1"],
+    30: TYPOGRAPHY_SCALE["h1"],
+    32: TYPOGRAPHY_SCALE["h1"],
+}
+
+
 APP_STYLE = """
 QMainWindow {
     background-color: #f4f6f8;
@@ -175,13 +206,13 @@ QMainWindow#admin_control_panel,
 
 #bean_sheet_summary_title {
     color: #294d37;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
 }
 
 #bean_sheet_summary_value {
-    color: #607267;
-    font-size: 14px;
+    color: #294d37;
+    font-size: 12px;
 }
 
 #bean_sheet_table_title {
@@ -219,6 +250,7 @@ QTableWidget#bean_data_table {
     alternate-background-color: #f7faf8;
     border: 1px solid #dce5df;
     color: #294d37;
+    font-size: 12px;
     gridline-color: #e7ece8;
     selection-background-color: #e3f3e6;
     selection-color: #173f2a;
@@ -272,7 +304,6 @@ QTableWidget#bean_data_table QHeaderView::section {
     color: #294d37;
     font-size: 15px;
     font-weight: 700;
-    padding-top: 6px;
 }
 
 #pricing_control_label,
@@ -280,6 +311,12 @@ QTableWidget#bean_data_table QHeaderView::section {
     color: #53675b;
     font-size: 13px;
     font-weight: 600;
+}
+
+#bean_sheet_current_label {
+    color: #294d37;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 #pricing_form_label {
@@ -341,6 +378,12 @@ QTableWidget#bean_data_table QHeaderView::section {
     font-weight: 700;
 }
 
+#bean_sheet_current_value {
+    color: #294d37;
+    font-size: 12px;
+    font-weight: 700;
+}
+
 #pricing_result_row {
     background-color: #f7f9f7;
     border: 1px solid #e8ede9;
@@ -355,8 +398,8 @@ QTableWidget#bean_data_table QHeaderView::section {
 }
 
 #pricing_total_card {
-    background-color: #eaf4ed;
-    border: 1px solid #cfe2d4;
+    background-color: #ffffff;
+    border: 1px solid #ccd8d0;
     border-radius: 11px;
 }
 
@@ -368,16 +411,17 @@ QTableWidget#bean_data_table QHeaderView::section {
 }
 
 #pricing_total_result {
-    background-color: transparent;
-    border: none;
-    color: #1b5b34;
+    background-color: #ffffff;
+    border: 1px solid #ccd8d0;
+    border-radius: 7px;
+    color: #20392b;
     font-size: 28px;
     font-weight: 700;
-    padding: 4px 2px;
+    padding: 8px 10px;
 }
 
 #pricing_total_result[result_state="status"] {
-    color: #68796f;
+    color: #20392b;
     font-size: 14px;
     font-weight: 600;
 }
@@ -426,18 +470,9 @@ QLineEdit#pricing_weight_input {
 QLineEdit#pricing_weight_input,
 QLineEdit#pricing_moisture_score_input,
 QLineEdit#pricing_pns_score_input {
-    background-color: #f2f7f3;
-    border-color: #d5e5d9;
-    color: #1b5b34;
     font-size: 18px;
     font-weight: 700;
     min-height: 32px;
-}
-
-QLineEdit#pricing_weight_input:read-only,
-QLineEdit#pricing_moisture_score_input,
-QLineEdit#pricing_pns_score_input {
-    background-color: #f2f7f3;
 }
 
 QDoubleSpinBox#pricing_base_price_input:hover,
@@ -1196,5 +1231,31 @@ QTableWidget#results_table {
 .result_bad {
     color: #c0392b;
     font-weight: bold;
+}
+"""
+
+APP_STYLE = re.sub(
+    r"font-size:\s*(\d+)px;",
+    lambda match: "font-size: {}px;".format(
+        _FONT_SIZE_SCALE[int(match.group(1))]
+    ),
+    APP_STYLE,
+)
+
+APP_STYLE += """
+/* Shared heading levels: h1 = 28px, h2 = 20px, h3 = 16px, body = 14px, caption = 12px. */
+#page_title,
+#bean_sheet_title {
+    font-size: 28px;
+}
+
+QLabel#section_title,
+.section_title,
+#section_title,
+#admin_accounts_heading,
+#pricing_panel_heading,
+#pricing_section_title,
+#bean_sheet_table_title {
+    font-size: 20px;
 }
 """

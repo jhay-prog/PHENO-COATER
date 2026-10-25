@@ -199,9 +199,7 @@ class ProcessMonitorPage(QWidget):
         self.log_output.setObjectName("admin_log_output")
         self.log_output.setReadOnly(True)
         self.log_output.setMaximumBlockCount(1000)
-        self.log_output.setStyleSheet(
-            "font-family: Consolas, monospace; font-size: 12px;"
-        )
+        self.log_output.setStyleSheet("font-size: 12px;")
         layout.addWidget(self.log_output)
         dashboard.system_log_received.connect(self.append_log)
         dashboard.nir_message_received.connect(self.append_log)

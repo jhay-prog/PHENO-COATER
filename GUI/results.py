@@ -36,7 +36,7 @@ class ResultsPage(QWidget):
             name = QLabel(label)
             name.setStyleSheet("color: #6b7280; font-size: 12px;")
             value_label = QLabel(value)
-            value_label.setStyleSheet("font-size: 24px; font-weight: bold;")
+            value_label.setStyleSheet("font-size: 28px; font-weight: bold;")
             card_layout.addWidget(name)
             card_layout.addWidget(value_label)
             summary_cards.addWidget(card, index // 2, index % 2)

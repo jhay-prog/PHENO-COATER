@@ -108,6 +108,8 @@ class PricingSettingsPage(QWidget):
         panels.setSpacing(8)
         controls_panel = self._create_panel("Pricing controls")
         controls_layout = controls_panel.layout()
+        controls_layout.setSpacing(0)
+        controls_layout.addSpacing(50)
 
         base_form = QFormLayout()
         base_form.setHorizontalSpacing(10)
@@ -129,10 +131,15 @@ class PricingSettingsPage(QWidget):
             self._input_with_suffix(self.base_price_input, "pesos/kg"),
         )
         controls_layout.addLayout(base_form)
+        controls_layout.addSpacing(50)
 
         effect_title = QLabel("Score effect")
         effect_title.setObjectName("pricing_section_title")
-        controls_layout.addWidget(effect_title)
+
+        effect_section = QVBoxLayout()
+        effect_section.setSpacing(0)
+        effect_section.addWidget(effect_title)
+        effect_section.addSpacing(12)
 
         moisture_effect_row = QHBoxLayout()
         moisture_effect_label = QLabel("Moisture Content Price Percent Effect")
@@ -142,7 +149,8 @@ class PricingSettingsPage(QWidget):
         moisture_effect_row.addWidget(moisture_effect_label)
         moisture_effect_row.addStretch()
         moisture_effect_row.addWidget(self.moisture_effect_label)
-        controls_layout.addLayout(moisture_effect_row)
+        effect_section.addLayout(moisture_effect_row)
+        effect_section.addSpacing(45)
 
         self.moisture_effect_slider = QSlider(Qt.Orientation.Horizontal)
         self.moisture_effect_slider.setObjectName("pricing_effect_slider")
@@ -152,7 +160,8 @@ class PricingSettingsPage(QWidget):
             self._update_effect_labels
         )
         self.moisture_effect_slider.valueChanged.connect(self._inputs_changed)
-        controls_layout.addWidget(self.moisture_effect_slider)
+        effect_section.addWidget(self.moisture_effect_slider)
+        effect_section.addSpacing(45)
 
         pns_effect_row = QHBoxLayout()
         pns_effect_label = QLabel("PNS Grade Price Percent Effect")
@@ -162,15 +171,10 @@ class PricingSettingsPage(QWidget):
         pns_effect_row.addWidget(pns_effect_label)
         pns_effect_row.addStretch()
         pns_effect_row.addWidget(self.pns_effect_label)
-        controls_layout.addLayout(pns_effect_row)
-
-        pns_note = QLabel(
-            "Adjust the slider to set the moisture weighting. PNS receives the "
-            "remaining share, so both weights always total 100%."
-        )
-        pns_note.setObjectName("pricing_note")
-        pns_note.setWordWrap(True)
-        controls_layout.addWidget(pns_note)
+        effect_section.addLayout(pns_effect_row)
+        controls_layout.addLayout(effect_section)
+        controls_layout.addSpacing(40)
+        controls_layout.addStretch()
 
         self.save_inputs_button = QPushButton("Save Inputs")
         self.save_inputs_button.setObjectName("pricing_save_inputs_button")
@@ -181,12 +185,6 @@ class PricingSettingsPage(QWidget):
 
         result_panel = self._create_panel("Price Result")
         result_layout = result_panel.layout()
-        input_note = QLabel(
-            "Current weight is the combined live reading from both load cells."
-        )
-        input_note.setObjectName("pricing_note")
-        input_note.setWordWrap(True)
-        result_layout.addWidget(input_note)
         self.arduino_status_label = QLabel(
             "Checking for Arduino serial connection..."
         )
@@ -236,7 +234,7 @@ class PricingSettingsPage(QWidget):
             0,
             100,
             2,
-            "Enter score",
+            "Waiting for moisture score",
         )
         self.moisture_score_input.setObjectName("pricing_moisture_score_input")
         self.moisture_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -245,7 +243,7 @@ class PricingSettingsPage(QWidget):
             0,
             100,
             2,
-            "Enter score",
+            "Waiting for PNS grade score",
         )
         self.pns_score_input.setObjectName("pricing_pns_score_input")
         self.pns_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -272,23 +270,23 @@ class PricingSettingsPage(QWidget):
         self.moisture_contribution_result = self._add_result_row(
             result_layout,
             "Overall Moisture Score",
-            initial_value="0",
+            initial_value="",
         )
         self.pns_contribution_result = self._add_result_row(
             result_layout,
             "Overall PNS Score",
-            initial_value="0",
+            initial_value="",
         )
         self.unit_price_result = self._add_result_row(
             result_layout,
             "Price Per Kilo",
-            initial_value="0",
+            initial_value="",
         )
         self.total_price_result = self._add_result_row(
             result_layout,
             "Total batch value",
             prominent=True,
-            initial_value="0",
+            initial_value="",
         )
         panels.addWidget(result_panel, 1)
         layout.addLayout(panels)
@@ -346,7 +344,7 @@ class PricingSettingsPage(QWidget):
         layout,
         title,
         prominent=False,
-        initial_value="0",
+        initial_value="",
     ):
         if prominent:
             total_card = QFrame()
@@ -407,14 +405,10 @@ class PricingSettingsPage(QWidget):
             or pns_score is None
             or not 0 <= pns_score <= 100
         ):
-            self.moisture_contribution_result.setText("0")
-            self.pns_contribution_result.setText("0")
-            self.unit_price_result.setText("0")
-            self._set_total_price_text(
-                "Enter valid inputs to calculate"
-                if self.total_price_unlocked
-                else "0"
-            )
+            self.moisture_contribution_result.clear()
+            self.pns_contribution_result.clear()
+            self.unit_price_result.clear()
+            self._set_total_price_text("")
             return
         valid_weight = (
             weight_kg is not None
@@ -428,15 +422,10 @@ class PricingSettingsPage(QWidget):
             self.moisture_effect_slider.value(),
         )
         if result is None:
-            message = "0"
-            self.moisture_contribution_result.setText(message)
-            self.pns_contribution_result.setText(message)
-            self.unit_price_result.setText(message)
-            self._set_total_price_text(
-                "Enter valid inputs to calculate"
-                if self.total_price_unlocked
-                else "0"
-            )
+            self.moisture_contribution_result.clear()
+            self.pns_contribution_result.clear()
+            self.unit_price_result.clear()
+            self._set_total_price_text("")
             return
 
         self.moisture_contribution_result.setText(
@@ -449,11 +438,11 @@ class PricingSettingsPage(QWidget):
             f"₱ {result['price_per_kilo']:,.2f} / kg"
         )
         if not self.total_price_unlocked:
-            self._set_total_price_text("0")
+            self._set_total_price_text("")
         elif not valid_weight:
-            self._set_total_price_text("0")
+            self._set_total_price_text("")
         elif result["total_price"] is None:
-            self._set_total_price_text("0")
+            self._set_total_price_text("")
         else:
             self._set_total_price_text(f"₱ {result['total_price']:,.2f}")
 
@@ -473,12 +462,14 @@ class PricingSettingsPage(QWidget):
 
     def set_arduino_status(self, message):
         normalized = message.casefold()
+        is_not_detected = "not detected" in normalized
         display_message = (
             "Load cells connected"
             if "live load-cell reading" in normalized
-            else message
+            else "" if is_not_detected else message
         )
         self.arduino_status_label.setText(display_message)
+        self.arduino_status_label.setVisible(not is_not_detected)
         state = (
             "connected"
             if "live load-cell reading" in normalized

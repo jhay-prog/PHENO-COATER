@@ -378,19 +378,19 @@ class HardwareCompatibilityTests(unittest.TestCase):
         pricing_page = PricingSettingsPage()
         self.assertEqual(
             pricing_page.total_price_result.text(),
-            "0",
+            "",
         )
         self.assertEqual(
             pricing_page.moisture_contribution_result.text(),
-            "0",
+            "",
         )
         self.assertEqual(
             pricing_page.pns_contribution_result.text(),
-            "0",
+            "",
         )
         self.assertEqual(
             pricing_page.unit_price_result.text(),
-            "0",
+            "",
         )
         self.assertEqual(pricing_page.weight_input.text(), "")
         self.assertTrue(pricing_page.weight_input.isReadOnly())
@@ -435,7 +435,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
             "Weighted quality score",
             {label.text() for label in pricing_page.findChildren(QLabel)},
         )
-        self.assertEqual(pricing_page.total_price_result.text(), "0")
+        self.assertEqual(pricing_page.total_price_result.text(), "")
         pricing_page.set_current_weight(1)
         pricing_page.save_inputs_button.click()
         self.assertEqual(pricing_page.total_price_result.text(), "₱ 178.60")
@@ -453,9 +453,9 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.weight_input.text(), "0.250")
         page.set_current_weight(None)
         self.assertEqual(page.unit_price_result.text(), "₱ 178.00 / kg")
-        self.assertEqual(page.total_price_result.text(), "0")
+        self.assertEqual(page.total_price_result.text(), "")
         page.save_inputs_button.click()
-        self.assertEqual(page.total_price_result.text(), "0")
+        self.assertEqual(page.total_price_result.text(), "")
         page.set_current_weight(1)
         self.assertEqual(page.total_price_result.text(), "₱ 178.00")
         page.base_price_input.setText("250")
@@ -467,7 +467,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.total_price_result.text(), "₱ 446.50")
         page.set_current_weight(None)
         self.assertEqual(page.weight_input.text(), "")
-        self.assertEqual(page.total_price_result.text(), "0")
+        self.assertEqual(page.total_price_result.text(), "")
         page.deleteLater()
 
     def test_pricing_score_and_weight_fields_accept_typed_decimal_values(self):
@@ -486,7 +486,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(page.pns_score_input.text(), "90.25")
         self.assertEqual(page.unit_price_result.text(), "₱ 179.42 / kg")
-        self.assertEqual(page.total_price_result.text(), "0")
+        self.assertEqual(page.total_price_result.text(), "")
         page.save_inputs_button.click()
         self.assertEqual(page.total_price_result.text(), "₱ 448.55")
         page.deleteLater()
@@ -496,12 +496,12 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page.base_price_input.setText("200")
         self.assertEqual(
             page.total_price_result.text(),
-            "0",
+            "",
         )
         page.save_inputs_button.click()
         self.assertEqual(
             page.total_price_result.text(),
-            "Enter valid inputs to calculate",
+            "",
         )
         page.deleteLater()
 
@@ -546,12 +546,20 @@ class HardwareCompatibilityTests(unittest.TestCase):
             title = next(
                 label.text()
                 for label in labels
-                if label.objectName() == "bean_sheet_summary_title"
+                if label.objectName()
+                in {
+                    "bean_sheet_summary_title",
+                    "bean_sheet_current_label",
+                }
             )
             value = next(
                 label.text()
                 for label in labels
-                if label.objectName() == "bean_sheet_summary_value"
+                if label.objectName()
+                in {
+                    "bean_sheet_summary_value",
+                    "bean_sheet_current_value",
+                }
             )
             if title in expected_titles:
                 current_values[title] = value
@@ -880,10 +888,8 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_normal_window_starts_on_dashboard_and_denies_admin_routes(self):
         with patch("GUI.main_window.Dashboard", FakeDashboard):
             window = MainWindow()
-        self.assertEqual(
-            window.pricing_page.arduino_status_label.text(),
-            "Arduino not detected.",
-        )
+        self.assertTrue(window.pricing_page.arduino_status_label.isHidden())
+        self.assertEqual(window.pricing_page.arduino_status_label.text(), "")
         window.dashboard_page.current_weight_changed.emit(2.0)
         self.assertEqual(window.pricing_page.weight_input.text(), "2.000")
         window.dashboard_page.arduino_status_changed.emit(

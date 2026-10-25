@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from .animated_button import AnimatedButton
+from .styles import TYPOGRAPHY_SCALE
 from NIR.as7265x import AS7265XReader, NIRReading, WAVELENGTHS
 
 
@@ -50,9 +51,7 @@ class NIRAnalysisPage(QWidget):
         self.serial_output.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.serial_output.setMinimumHeight(180)
         self.serial_output.setMaximumBlockCount(500)
-        self.serial_output.setStyleSheet(
-            "font-family: Consolas, monospace; font-size: 12px;"
-        )
+        self.serial_output.setStyleSheet("font-size: 12px;")
         self.serial_output.setPlainText(
             "Waiting for AS7265X serial data..."
         )
@@ -89,7 +88,7 @@ class NIRAnalysisPage(QWidget):
             QCategoryAxis.AxisLabelsPosition.AxisLabelsPositionCenter
         )
         channel_font = QFont()
-        channel_font.setPointSize(8)
+        channel_font.setPixelSize(TYPOGRAPHY_SCALE["caption"])
         self.wavelength_axis.setLabelsFont(channel_font)
         for index, wavelength in enumerate(WAVELENGTHS):
             self.wavelength_axis.append(str(wavelength), index + 0.5)
