@@ -150,6 +150,28 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(dashboard_scroll)
 
         self.pricing_page = PricingSettingsPage()
+        self.dashboard_page.current_weight_changed.connect(
+            self.pricing_page.set_current_weight
+        )
+        self.dashboard_page.arduino_status_changed.connect(
+            self.pricing_page.set_arduino_status
+        )
+        self.pricing_page.set_arduino_status(
+            getattr(
+                self.dashboard_page,
+                "arduino_status_message",
+                "Checking for Arduino serial connection...",
+            )
+        )
+        self.pricing_page.set_current_weight(
+            getattr(self.dashboard_page, "current_weight_kg", None)
+        )
+        self.dashboard_page.nir_message_received.connect(
+            self.pricing_page.update_calibration_prompt
+        )
+        self.pricing_page.calibration_continue_requested.connect(
+            self.dashboard_page.continue_load_cell_calibration
+        )
         pricing_scroll = QScrollArea()
         pricing_scroll.setObjectName('pricing_scroll')
         pricing_scroll.setWidgetResizable(True)

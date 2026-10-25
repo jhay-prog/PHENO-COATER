@@ -1,5 +1,8 @@
 # dashboard.py
 
+import re
+from math import isfinite
+
 import cv2
 
 from .ai_model import get_configured_ai_model_path, load_yolo_model
@@ -63,11 +66,14 @@ class _InferenceTask(QRunnable):
 class Dashboard(QWidget):
 
     camera_status_changed = Signal(str)
+    current_weight_changed = Signal(object)
+    arduino_status_changed = Signal(str)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
     servo_sweep_status_received = Signal(int, bool)
     EMEET_CAMERA_INDEX = 0
+    GRAMS_PER_KILOGRAM = 1000.0
 
     def __init__(self):
         super().__init__()
@@ -104,8 +110,10 @@ class Dashboard(QWidget):
         self.arduino_port = None
         self.camera_connected = False
         self.arduino_connected = False
+        self.arduino_status_message = ""
         self.nir_connected = False
         self.serial_buffer = ""
+        self.current_weight_kg = None
         self.nir_detected = False
         self.nir_scanning = False
         self.servo_minimum_angles = {1: 20, 2: 20}
@@ -143,6 +151,11 @@ class Dashboard(QWidget):
         super().closeEvent(event)
 
     def update_arduino_status(self):
+        if list_ports is None or serial is None:
+            self._set_arduino_status(
+                "Serial support is unavailable. Install the app requirements."
+            )
+            return
         ports = list(list_ports.comports()) if list_ports is not None else []
         arduino_port = next((port for port in ports if self.is_arduino_port(port)), None)
         arduino_connected = arduino_port is not None
@@ -152,14 +165,25 @@ class Dashboard(QWidget):
             was_connected = self.arduino_serial is not None
             self.close_arduino_serial()
             self.nir_detected = False
+            self._set_arduino_status(
+                "Arduino not detected. Check the USB cable and serial port."
+            )
             if was_connected:
                 self.system_log_received.emit("Arduino serial connection lost.")
 
         self.arduino_connected = arduino_connected
         self.update_nir_status()
 
+    def _set_arduino_status(self, message):
+        if self.arduino_status_message != message:
+            self.arduino_status_message = message
+            self.arduino_status_changed.emit(message)
+
     def read_arduino_messages(self, port):
         if serial is None:
+            self._set_arduino_status(
+                "Serial support is unavailable. Install the app requirements."
+            )
             return
         if self.arduino_serial is None or self.arduino_port != port.device:
             self.close_arduino_serial()
@@ -173,12 +197,19 @@ class Dashboard(QWidget):
                 self.system_log_received.emit(
                     f"Arduino serial connected on {port.device}."
                 )
+                self._set_arduino_status(
+                    f"Connected on {port.device}; waiting for HX711 readings. "
+                    "Check the sketch baud rate and finish calibration if prompted."
+                )
                 QTimer.singleShot(1500, self.initialize_nir_scanner)
             except (serial.SerialException, OSError) as exc:
                 self.arduino_serial = None
                 self.arduino_port = None
                 self.system_log_received.emit(
                     f"Arduino serial connection failed on {port.device}: {exc}"
+                )
+                self._set_arduino_status(
+                    f"Could not open {port.device}: {exc}"
                 )
                 return
 
@@ -195,10 +226,39 @@ class Dashboard(QWidget):
                 if message:
                     self.nir_message_received.emit(message)
                     self.handle_servo_status(message)
+                    weight_kg = self.parse_load_cell_weight_kg(message)
+                    if weight_kg is not None:
+                        self.current_weight_kg = weight_kg
+                        self.current_weight_changed.emit(weight_kg)
+                        self._set_arduino_status(
+                            f"Live load-cell reading: {weight_kg:.3f} kg"
+                        )
+                    elif message.startswith(
+                        (
+                            "ERROR: HX711 not ready.",
+                            "ERROR: One or both HX711 modules are not ready.",
+                        )
+                    ):
+                        self._clear_current_weight()
+                        self._set_arduino_status(message)
+                    elif message.startswith(
+                        (
+                            "LOAD CELL 1 CALIBRATION",
+                            "LOAD CELL 2 CALIBRATION",
+                            "Empty load cell",
+                            "Place a known",
+                            "Remove the weight",
+                            "Send C",
+                        )
+                    ):
+                        self._set_arduino_status(
+                            f"Calibration required: {message}"
+                        )
                 if self.is_nir_message(message):
                     self.nir_detected = True
         except (serial.SerialException, OSError) as exc:
             self.system_log_received.emit(f"Arduino serial read failed: {exc}")
+            self._set_arduino_status(f"Arduino serial read failed: {exc}")
             self.close_arduino_serial()
 
     def set_nir_scanning(self, enabled):
@@ -216,6 +276,14 @@ class Dashboard(QWidget):
             self.send_servo_sweep_config(motor)
             if self.servo_sweeping[motor]:
                 self.write_arduino_command(f"W{motor},1\n")
+
+    def continue_load_cell_calibration(self):
+        if self.arduino_serial is None or not self.arduino_serial.is_open:
+            self.system_log_received.emit(
+                "Cannot continue load-cell calibration: Arduino is not connected."
+            )
+            return
+        self.write_arduino_command("C\n")
 
     def set_servo_angle(self, motor, angle):
         if motor not in (1, 2):
@@ -272,6 +340,27 @@ class Dashboard(QWidget):
                 int(fields[0][-1]), fields[1] == "1"
             )
 
+    @staticmethod
+    def parse_load_cell_weight_kg(message):
+        match = re.fullmatch(
+            r"\s*Load\s+Cell\s+1\s*:\s*(-?(?:\d+(?:\.\d*)?|\.\d+))"
+            r"\s*g\s*\|\s*Load\s+Cell\s+2\s*:\s*"
+            r"(-?(?:\d+(?:\.\d*)?|\.\d+))\s*g\s*",
+            message,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        weight1_grams, weight2_grams = (
+            float(value) for value in match.groups()
+        )
+        combined_weight_grams = weight1_grams + weight2_grams
+        if not isfinite(combined_weight_grams):
+            return None
+        return combined_weight_grams / Dashboard.GRAMS_PER_KILOGRAM
+
+    parse_load_cell_weight = parse_load_cell_weight_kg
+
     def send_nir_scan_delay(self):
         if self.arduino_serial is None or not self.arduino_serial.is_open:
             return
@@ -304,6 +393,12 @@ class Dashboard(QWidget):
         self.arduino_serial = None
         self.arduino_port = None
         self.serial_buffer = ""
+        self._clear_current_weight()
+
+    def _clear_current_weight(self):
+        if self.current_weight_kg is not None:
+            self.current_weight_kg = None
+            self.current_weight_changed.emit(None)
 
     @staticmethod
     def is_nir_message(message):
@@ -700,10 +795,10 @@ class Dashboard(QWidget):
         self.cards_layout.setVerticalSpacing(12)
 
         self.cards = [
-            self.create_card("CURRENT SEED", "No data", "Seed number"),
-            self.create_card("WEIGHT", "No data", "grams"),
-            self.create_card("MOISTURE", "No data", "%"),
-            self.create_card("QUALITY", "No data", "Classification"),
+            self.create_card("CURRENT SEED", "", "Seed number"),
+            self.create_card("WEIGHT", "", "grams"),
+            self.create_card("MOISTURE", "", "%"),
+            self.create_card("QUALITY", "", "Classification"),
         ]
         self.card_columns = 1
         self.reflow_cards(self.card_columns)

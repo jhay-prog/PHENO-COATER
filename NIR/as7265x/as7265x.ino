@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "HX711.h"
 #include <Wire.h>
 #include <Servo.h>
 #include <SparkFun_AS7265X.h>
@@ -9,6 +10,18 @@
 // Hardware & global state
 // ---------------------------------------------------------------------------
 AS7265X SPECTRALSENSOR;
+HX711 SCALE1;
+HX711 SCALE2;
+
+const uint8_t LOADCELLDATAPIN1 = 6;
+const uint8_t LOADCELLCLOCKPIN1 = 7;
+const uint8_t LOADCELLDATAPIN2 = 4;
+const uint8_t LOADCELLCLOCKPIN2 = 5;
+
+bool LOADCELL1TARED = false;
+bool LOADCELL2TARED = false;
+unsigned long LASTWEIGHTREPORT = 0;
+const uint8_t LOAD_CELL_AVERAGE_SAMPLES = 10;
 
 // Scanning / measurement state
 bool ISSCANNING = false;
@@ -35,6 +48,47 @@ int SERVOMAXANGLE[2] = {160, 160};
 int SERVOSWEEPSPEED[2] = {45, 45};      // degrees per second
 bool SERVOSWEEPING[2] = {false, false};
 unsigned long LASTSERVOSTEP[2] = {0, 0};
+
+
+void updateLoadCellReadings() {
+  if (!LOADCELL1TARED && SCALE1.is_ready()) {
+    SCALE1.tare(180);
+    LOADCELL1TARED = true;
+    Serial.println("Load Cell 1 auto tare complete.");
+  }
+
+  if (!LOADCELL2TARED && SCALE2.is_ready()) {
+    SCALE2.tare(180);
+    LOADCELL2TARED = true;
+    Serial.println("Load Cell 2 auto tare complete.");
+  }
+
+  if (!LOADCELL1TARED || !LOADCELL2TARED) {
+    unsigned long NOW = millis();
+    if (NOW - LASTWEIGHTREPORT >= 1000) {
+      Serial.println("ERROR: One or both HX711 modules are not ready.");
+      LASTWEIGHTREPORT = NOW;
+    }
+    return;
+  }
+
+  unsigned long NOW = millis();
+  if (NOW - LASTWEIGHTREPORT < 500) return;
+  if (!SCALE1.is_ready() || !SCALE2.is_ready()) {
+    Serial.println("ERROR: One or both HX711 modules are not ready.");
+    LASTWEIGHTREPORT = NOW;
+    return;
+  }
+
+  float WEIGHT1 = SCALE1.get_units(LOAD_CELL_AVERAGE_SAMPLES);
+  float WEIGHT2 = SCALE2.get_units(LOAD_CELL_AVERAGE_SAMPLES);
+  Serial.print("Load Cell 1: ");
+  Serial.print(WEIGHT1, 2);
+  Serial.print(" g | Load Cell 2: ");
+  Serial.print(WEIGHT2, 2);
+  Serial.println(" g");
+  LASTWEIGHTREPORT = millis();
+}
 
 // ---------------------------------------------------------------------------
 // Servo helpers
@@ -308,6 +362,10 @@ void setup() {
   Serial.begin(115200);
   Wire.begin();
 
+  SCALE1.begin(LOADCELLDATAPIN1, LOADCELLCLOCKPIN1);
+  SCALE2.begin(LOADCELLDATAPIN2, LOADCELLCLOCKPIN2);
+  Serial.println("Dual HX711 load cells starting; empty platforms will be auto-tared.");
+
 
   for (uint8_t I = 0; I < 2; I++) {
     SERVOS[I].attach(SERVOPINS[I]);
@@ -334,6 +392,7 @@ void setup() {
 void loop() {
   readSerialInput();
   updateSweeps();
+  updateLoadCellReadings();
 
 
   if (!ISSCANNING || !SENSORISREADY) {

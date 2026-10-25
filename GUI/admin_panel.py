@@ -158,7 +158,11 @@ class SystemOverviewPage(QWidget):
             "Camera": self.dashboard.camera_connected,
             "Arduino": self.dashboard.arduino_connected,
             "NIR Sensor": self.dashboard.nir_connected,
-            "Load Cell": False,
+            "Load Cell": getattr(
+                self.dashboard,
+                "current_weight_kg",
+                None,
+            ) is not None,
             "AI Model": getattr(self.dashboard, "ai_model", None) is not None,
         }
         for name, connected in states.items():

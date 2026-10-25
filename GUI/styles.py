@@ -258,13 +258,14 @@ QTableWidget#bean_data_table QHeaderView::section {
 }
 
 #pricing_panel_heading {
-    background-color: #f1f6f2;
-    border: 1px solid #e2ebe4;
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid #e7ece8;
+    border-radius: 0;
     color: #173f2a;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
-    padding: 12px 15px;
+    padding: 2px 2px 10px 2px;
 }
 
 #pricing_section_title {
@@ -276,8 +277,8 @@ QTableWidget#bean_data_table QHeaderView::section {
 
 #pricing_control_label,
 #pricing_result_label {
-    color: #3e5648;
-    font-size: 14px;
+    color: #53675b;
+    font-size: 13px;
     font-weight: 600;
 }
 
@@ -292,6 +293,42 @@ QTableWidget#bean_data_table QHeaderView::section {
     font-size: 12px;
 }
 
+#pricing_arduino_status {
+    background-color: #f4f7f5;
+    border: 1px solid #e1e9e3;
+    border-radius: 7px;
+    color: #53675b;
+    font-size: 12px;
+    padding: 7px 9px;
+}
+
+#pricing_arduino_status[status_state="connected"] {
+    background-color: #edf6ef;
+    border-color: #d4e7d8;
+    color: #24643e;
+}
+
+#pricing_arduino_status[status_state="error"] {
+    background-color: #fff2f0;
+    border-color: #f1d8d3;
+    color: #9f3933;
+}
+
+#pricing_arduino_status[status_state="waiting"] {
+    background-color: #f4f7f5;
+    border-color: #e1e9e3;
+    color: #53675b;
+}
+
+#pricing_calibration_prompt {
+    background-color: #fff8e8;
+    border: 1px solid #f0e2bd;
+    border-radius: 7px;
+    color: #765a1d;
+    font-size: 12px;
+    padding: 8px 10px;
+}
+
 #pricing_effect_value {
     color: #287044;
     font-size: 15px;
@@ -300,8 +337,14 @@ QTableWidget#bean_data_table QHeaderView::section {
 
 #pricing_result_value {
     color: #234b33;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
+}
+
+#pricing_result_row {
+    background-color: #f7f9f7;
+    border: 1px solid #e8ede9;
+    border-radius: 7px;
 }
 
 #pricing_results_divider {
@@ -311,19 +354,31 @@ QTableWidget#bean_data_table QHeaderView::section {
     min-height: 1px;
 }
 
-#pricing_total_result {
+#pricing_total_card {
     background-color: #eaf4ed;
     border: 1px solid #cfe2d4;
-    border-radius: 10px;
+    border-radius: 11px;
+}
+
+#pricing_total_label {
     color: #1b5b34;
-    font-size: 26px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 18px 14px;
+    letter-spacing: 1px;
+}
+
+#pricing_total_result {
+    background-color: transparent;
+    border: none;
+    color: #1b5b34;
+    font-size: 28px;
+    font-weight: 700;
+    padding: 4px 2px;
 }
 
 #pricing_total_result[result_state="status"] {
     color: #68796f;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -366,6 +421,23 @@ QLineEdit#pricing_weight_input {
     padding: 8px 10px;
     selection-background-color: #cfe5d5;
     selection-color: #173f2a;
+}
+
+QLineEdit#pricing_weight_input,
+QLineEdit#pricing_moisture_score_input,
+QLineEdit#pricing_pns_score_input {
+    background-color: #f2f7f3;
+    border-color: #d5e5d9;
+    color: #1b5b34;
+    font-size: 18px;
+    font-weight: 700;
+    min-height: 32px;
+}
+
+QLineEdit#pricing_weight_input:read-only,
+QLineEdit#pricing_moisture_score_input,
+QLineEdit#pricing_pns_score_input {
+    background-color: #f2f7f3;
 }
 
 QDoubleSpinBox#pricing_base_price_input:hover,

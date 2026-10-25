@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from GUI.admin_panel import AdminControlPanel, AdminPasswordResetDialog
 from GUI.admin_login import AdminLoginDialog
 from GUI.auth import AdminCredentials, AdminSession, SUPER_ADMIN_ROLE
+from GUI.bean_data_sheet import BeanDataSheetPage
 from GUI.camera import CameraPage
 from GUI.dashboard import Dashboard
 from GUI.main_window import MainWindow
@@ -38,6 +39,8 @@ from NIR.as7265x import AS7265XReader, WAVELENGTHS
 
 class FakeDashboard(QWidget):
     camera_status_changed = Signal(str)
+    current_weight_changed = Signal(object)
+    arduino_status_changed = Signal(str)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
@@ -54,6 +57,8 @@ class FakeDashboard(QWidget):
         self.camera_capture = None
         self.camera_connected = False
         self.arduino_connected = False
+        self.arduino_status_message = "Arduino not detected."
+        self.current_weight_kg = None
         self.arduino_serial = None
         self.arduino_baud_rate = 115200
         self.camera_source = 0
@@ -111,6 +116,9 @@ class FakeDashboard(QWidget):
 
     def set_nir_scanning(self, enabled):
         self.commands.append(("scan", enabled))
+
+    def continue_load_cell_calibration(self):
+        self.commands.append(("calibration-continue",))
 
     def set_servo_angle(self, motor, angle):
         self.commands.append(("angle", motor, angle))
@@ -178,6 +186,31 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertTrue(Dashboard.is_arduino_port(arduino))
         self.assertFalse(Dashboard.is_arduino_port(unrelated))
+
+    def test_dual_load_cell_readings_are_summed_and_converted_to_kilograms(self):
+        self.assertEqual(
+            Dashboard.parse_load_cell_weight_kg(
+                "Load Cell 1: 1250.00 g | Load Cell 2: 750.00 g"
+            ),
+            2.0,
+        )
+        self.assertEqual(
+            Dashboard.parse_load_cell_weight_kg(
+                "Load Cell 1: -12.50 g | Load Cell 2: 1000.00 g"
+            ),
+            0.9875,
+        )
+        self.assertIsNone(
+            Dashboard.parse_load_cell_weight_kg(
+                "Load Cell 1 reading: 1250.00 g"
+            )
+        )
+        self.assertEqual(
+            Dashboard.parse_load_cell_weight_kg(
+                "Load Cell 1: 125.00 g | Load Cell 2: 125.00 g"
+            ),
+            0.25,
+        )
 
     def test_dashboard_keeps_original_element_sizes_with_compact_spacing(self):
         scroll = QScrollArea()
@@ -345,10 +378,31 @@ class HardwareCompatibilityTests(unittest.TestCase):
         pricing_page = PricingSettingsPage()
         self.assertEqual(
             pricing_page.total_price_result.text(),
-            "—",
+            "0",
         )
-        self.assertEqual(pricing_page.weight_input.text(), "1.000")
+        self.assertEqual(
+            pricing_page.moisture_contribution_result.text(),
+            "0",
+        )
+        self.assertEqual(
+            pricing_page.pns_contribution_result.text(),
+            "0",
+        )
+        self.assertEqual(
+            pricing_page.unit_price_result.text(),
+            "0",
+        )
+        self.assertEqual(pricing_page.weight_input.text(), "")
+        self.assertTrue(pricing_page.weight_input.isReadOnly())
         self.assertEqual(pricing_page.weight_input.validator().decimals(), 3)
+        self.assertEqual(
+            pricing_page.weight_input.alignment(),
+            pricing_page.moisture_score_input.alignment(),
+        )
+        self.assertEqual(
+            pricing_page.weight_input.alignment(),
+            pricing_page.pns_score_input.alignment(),
+        )
         pricing_page.moisture_effect_slider.setValue(35)
         self.assertEqual(pricing_page.moisture_effect_label.text(), "35%")
         self.assertEqual(pricing_page.pns_effect_label.text(), "65%")
@@ -381,7 +435,8 @@ class HardwareCompatibilityTests(unittest.TestCase):
             "Weighted quality score",
             {label.text() for label in pricing_page.findChildren(QLabel)},
         )
-        self.assertEqual(pricing_page.total_price_result.text(), "—")
+        self.assertEqual(pricing_page.total_price_result.text(), "0")
+        pricing_page.set_current_weight(1)
         pricing_page.save_inputs_button.click()
         self.assertEqual(pricing_page.total_price_result.text(), "₱ 178.60")
         pricing_page.deleteLater()
@@ -391,17 +446,28 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page.base_price_input.setText("200")
         page.moisture_score_input.setText("88")
         page.pns_score_input.setText("90")
+        weight_kg = Dashboard.parse_load_cell_weight_kg(
+            "Load Cell 1: 125.00 g | Load Cell 2: 125.00 g"
+        )
+        page.set_current_weight(weight_kg)
+        self.assertEqual(page.weight_input.text(), "0.250")
+        page.set_current_weight(None)
         self.assertEqual(page.unit_price_result.text(), "₱ 178.00 / kg")
-        self.assertEqual(page.total_price_result.text(), "—")
+        self.assertEqual(page.total_price_result.text(), "0")
         page.save_inputs_button.click()
+        self.assertEqual(page.total_price_result.text(), "0")
+        page.set_current_weight(1)
         self.assertEqual(page.total_price_result.text(), "₱ 178.00")
         page.base_price_input.setText("250")
         self.assertEqual(page.total_price_result.text(), "₱ 222.50")
-        page.weight_input.setText("2")
+        page.set_current_weight(2)
         self.assertEqual(page.total_price_result.text(), "₱ 445.00")
         page.moisture_effect_slider.setValue(35)
         self.assertEqual(page.unit_price_result.text(), "₱ 223.25 / kg")
         self.assertEqual(page.total_price_result.text(), "₱ 446.50")
+        page.set_current_weight(None)
+        self.assertEqual(page.weight_input.text(), "")
+        self.assertEqual(page.total_price_result.text(), "0")
         page.deleteLater()
 
     def test_pricing_score_and_weight_fields_accept_typed_decimal_values(self):
@@ -409,10 +475,10 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page.base_price_input.setText("200.75")
         page.moisture_score_input.setText("88.5")
         page.pns_score_input.setText("90.25")
-        page.weight_input.setText("2.5")
+        page.set_current_weight(2.5)
         self.assertEqual(page.base_price_input.text(), "200.75")
         self.assertEqual(page.base_price_input.validator().decimals(), 2)
-        self.assertEqual(page.weight_input.text(), "2.5")
+        self.assertEqual(page.weight_input.text(), "2.500")
         self.assertEqual(page.weight_input.validator().decimals(), 3)
         self.assertEqual(
             page.moisture_score_input.validator().decimals(),
@@ -420,7 +486,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(page.pns_score_input.text(), "90.25")
         self.assertEqual(page.unit_price_result.text(), "₱ 179.42 / kg")
-        self.assertEqual(page.total_price_result.text(), "—")
+        self.assertEqual(page.total_price_result.text(), "0")
         page.save_inputs_button.click()
         self.assertEqual(page.total_price_result.text(), "₱ 448.55")
         page.deleteLater()
@@ -430,13 +496,68 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page.base_price_input.setText("200")
         self.assertEqual(
             page.total_price_result.text(),
-            "—",
+            "0",
         )
         page.save_inputs_button.click()
         self.assertEqual(
             page.total_price_result.text(),
             "Enter valid inputs to calculate",
         )
+        page.deleteLater()
+
+    def test_pricing_result_has_clear_total_card_and_quiet_calibration_controls(self):
+        page = PricingSettingsPage()
+        self.assertIsNotNone(
+            page.findChild(QWidget, "pricing_total_card")
+        )
+        self.assertGreaterEqual(
+            len(page.findChildren(QWidget, "pricing_result_row")),
+            3,
+        )
+        self.assertTrue(page.calibration_prompt_label.isHidden())
+        self.assertTrue(page.calibration_continue_button.isHidden())
+        page.set_arduino_status("Live load-cell reading: 2.000 kg")
+        self.assertEqual(
+            page.arduino_status_label.property("status_state"),
+            "connected",
+        )
+        self.assertEqual(
+            page.arduino_status_label.text(),
+            "Load cells connected",
+        )
+        page.update_calibration_prompt("Send C to tare.")
+        self.assertFalse(page.calibration_prompt_label.isHidden())
+        self.assertFalse(page.calibration_continue_button.isHidden())
+        page.deleteLater()
+
+    def test_bean_data_current_summary_values_start_blank(self):
+        page = BeanDataSheetPage()
+        expected_titles = {
+            "Current Bean Number",
+            "Current PNS Sample Number",
+            "Current Good Bean Number",
+            "Current Weight",
+            "PNS Grade Summary",
+            "Moisture Content Grade Summary",
+        }
+        current_values = {}
+        for card in page.findChildren(QWidget, "bean_sheet_summary_card"):
+            labels = card.findChildren(QLabel)
+            title = next(
+                label.text()
+                for label in labels
+                if label.objectName() == "bean_sheet_summary_title"
+            )
+            value = next(
+                label.text()
+                for label in labels
+                if label.objectName() == "bean_sheet_summary_value"
+            )
+            if title in expected_titles:
+                current_values[title] = value
+        self.assertEqual(current_values, {title: "" for title in expected_titles})
+        self.assertFalse(page.empty_state.isVisible())
+        self.assertEqual(page.empty_state.text(), "")
         page.deleteLater()
 
     def test_admin_panel_reuses_dashboard_and_blocks_commands_after_logout(self):
@@ -464,6 +585,26 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(
             overview.status_values["AI Model"].text(),
             "NOT READY",
+        )
+        self.assertEqual(
+            overview.status_values["Load Cell"].text(),
+            "NOT CONNECTED",
+        )
+        dashboard.current_weight_kg = 1.25
+        overview.refresh_status()
+        self.assertEqual(
+            overview.status_values["Load Cell"].text(),
+            "CONNECTED",
+        )
+        self.assertEqual(
+            overview.status_values["Load Cell"].property("connection_state"),
+            "connected",
+        )
+        dashboard.current_weight_kg = None
+        overview.refresh_status()
+        self.assertEqual(
+            overview.status_values["Load Cell"].text(),
+            "NOT CONNECTED",
         )
         dashboard.camera_connected = True
         overview.refresh_status()
@@ -739,6 +880,33 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_normal_window_starts_on_dashboard_and_denies_admin_routes(self):
         with patch("GUI.main_window.Dashboard", FakeDashboard):
             window = MainWindow()
+        self.assertEqual(
+            window.pricing_page.arduino_status_label.text(),
+            "Arduino not detected.",
+        )
+        window.dashboard_page.current_weight_changed.emit(2.0)
+        self.assertEqual(window.pricing_page.weight_input.text(), "2.000")
+        window.dashboard_page.arduino_status_changed.emit(
+            "Live load-cell reading: 2.000 kg"
+        )
+        self.assertEqual(
+            window.pricing_page.arduino_status_label.text(),
+            "Live load-cell reading: 2.000 kg",
+        )
+        window.dashboard_page.nir_message_received.emit(
+            "Send C to tare."
+        )
+        self.assertTrue(
+            window.pricing_page.calibration_continue_button.isEnabled()
+        )
+        window.pricing_page.calibration_continue_button.click()
+        self.assertFalse(
+            window.pricing_page.calibration_continue_button.isEnabled()
+        )
+        self.assertIn(
+            ("calibration-continue",),
+            window.dashboard_page.commands,
+        )
         self.assertEqual(window.pages.currentIndex(), 0)
         self.assertFalse(
             hasattr(window, "camera_toggle_button"),

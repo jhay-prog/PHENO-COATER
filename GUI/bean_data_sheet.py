@@ -84,14 +84,12 @@ class BeanDataSheetPage(QWidget):
         grading_summary_row.addWidget(
             self._create_summary_card(
                 "PNS Grade Summary",
-                "No PNS grade results available",
             ),
             1,
         )
         grading_summary_row.addWidget(
             self._create_summary_card(
                 "Moisture Content Grade Summary",
-                "No moisture grade results available",
             ),
             1,
         )
@@ -139,18 +137,17 @@ class BeanDataSheetPage(QWidget):
         )
         table_layout.addWidget(self.data_table, 1)
 
-        self.empty_state = QLabel(
-            "No bean records are available yet."
-        )
+        self.empty_state = QLabel()
         self.empty_state.setObjectName("bean_sheet_empty_state")
         self.empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_state.hide()
         table_layout.addWidget(self.empty_state)
 
         layout.addWidget(table_panel, 1)
         self.show_table("Beans in 100g Sample")
 
     @staticmethod
-    def _create_summary_card(title, value="—"):
+    def _create_summary_card(title, value=""):
         card = QFrame()
         card.setObjectName("bean_sheet_summary_card")
         card_layout = QVBoxLayout(card)
@@ -189,7 +186,7 @@ class BeanDataSheetPage(QWidget):
                 header_font
             )
         self.data_table.setRowCount(0)
-        self.empty_state.setVisible(True)
+        self.empty_state.hide()
 
     def _show_selected_table(self, checked):
         if checked:

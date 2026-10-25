@@ -1,6 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 
-from PySide6.QtCore import QLocale, Qt
+from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 
 
 class PricingSettingsPage(QWidget):
+    calibration_continue_requested = Signal()
+
     def __init__(self, permission_check=None):
         super().__init__()
         self.setObjectName("pricing_settings_page")
@@ -180,12 +182,38 @@ class PricingSettingsPage(QWidget):
         result_panel = self._create_panel("Price Result")
         result_layout = result_panel.layout()
         input_note = QLabel(
-            "Enter the quality scores. Batch weight is a test input, defaulting "
-            "to 1 kg; live load-cell readings are not available."
+            "Current weight is the combined live reading from both load cells."
         )
         input_note.setObjectName("pricing_note")
         input_note.setWordWrap(True)
         result_layout.addWidget(input_note)
+        self.arduino_status_label = QLabel(
+            "Checking for Arduino serial connection..."
+        )
+        self.arduino_status_label.setObjectName("pricing_arduino_status")
+        self.arduino_status_label.setWordWrap(True)
+        result_layout.addWidget(self.arduino_status_label)
+        self.calibration_prompt_label = QLabel(
+            "Arduino calibration prompts will appear here."
+        )
+        self.calibration_prompt_label.setObjectName(
+            "pricing_calibration_prompt"
+        )
+        self.calibration_prompt_label.setWordWrap(True)
+        self.calibration_prompt_label.setVisible(False)
+        result_layout.addWidget(self.calibration_prompt_label)
+        self.calibration_continue_button = QPushButton(
+            "Continue calibration"
+        )
+        self.calibration_continue_button.setObjectName(
+            "pricing_calibration_continue_button"
+        )
+        self.calibration_continue_button.setEnabled(False)
+        self.calibration_continue_button.setVisible(False)
+        self.calibration_continue_button.clicked.connect(
+            self._request_calibration_continue
+        )
+        result_layout.addWidget(self.calibration_continue_button)
 
         value_form = QFormLayout()
         value_form.setHorizontalSpacing(18)
@@ -198,11 +226,11 @@ class PricingSettingsPage(QWidget):
             0,
             1_000_000_000,
             3,
-            "Enter weight",
+            "Waiting for load cells",
         )
-        self.weight_input.setText("1.000")
+        self.weight_input.setReadOnly(True)
         self.weight_input.setAccessibleName("Current batch weight in kilograms")
-        self.weight_input.textChanged.connect(self._inputs_changed)
+        self.weight_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.moisture_score_input = self._create_numeric_input(
             "pricing_moisture_score_input",
             0,
@@ -211,6 +239,7 @@ class PricingSettingsPage(QWidget):
             "Enter score",
         )
         self.moisture_score_input.setObjectName("pricing_moisture_score_input")
+        self.moisture_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pns_score_input = self._create_numeric_input(
             "pricing_pns_score_input",
             0,
@@ -219,6 +248,7 @@ class PricingSettingsPage(QWidget):
             "Enter score",
         )
         self.pns_score_input.setObjectName("pricing_pns_score_input")
+        self.pns_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.moisture_score_input.textChanged.connect(self._inputs_changed)
         self.pns_score_input.textChanged.connect(self._inputs_changed)
         value_form.addRow(
@@ -242,20 +272,23 @@ class PricingSettingsPage(QWidget):
         self.moisture_contribution_result = self._add_result_row(
             result_layout,
             "Overall Moisture Score",
+            initial_value="0",
         )
         self.pns_contribution_result = self._add_result_row(
             result_layout,
             "Overall PNS Score",
+            initial_value="0",
         )
         self.unit_price_result = self._add_result_row(
             result_layout,
             "Price Per Kilo",
+            initial_value="0",
         )
         self.total_price_result = self._add_result_row(
             result_layout,
-            "Total batch price",
+            "Total batch value",
             prominent=True,
-            initial_value="—",
+            initial_value="0",
         )
         panels.addWidget(result_panel, 1)
         layout.addLayout(panels)
@@ -313,15 +346,18 @@ class PricingSettingsPage(QWidget):
         layout,
         title,
         prominent=False,
-        initial_value="—",
+        initial_value="0",
     ):
-        name = QLabel(title)
-        name.setObjectName("pricing_result_label")
-        value = QLabel(initial_value)
-        value.setObjectName(
-            "pricing_total_result" if prominent else "pricing_result_value"
-        )
         if prominent:
+            total_card = QFrame()
+            total_card.setObjectName("pricing_total_card")
+            total_layout = QVBoxLayout(total_card)
+            total_layout.setContentsMargins(12, 12, 12, 12)
+            total_layout.setSpacing(6)
+            name = QLabel(title)
+            name.setObjectName("pricing_total_label")
+            value = QLabel(initial_value)
+            value.setObjectName("pricing_total_result")
             value.setProperty(
                 "result_state",
                 (
@@ -330,15 +366,25 @@ class PricingSettingsPage(QWidget):
                     else "value"
                 ),
             )
-            layout.addWidget(name)
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(value)
-        else:
-            row = QHBoxLayout()
-            row.addWidget(name)
-            row.addStretch()
-            row.addWidget(value)
-            layout.addLayout(row)
+            total_layout.addWidget(name)
+            total_layout.addWidget(value)
+            layout.addWidget(total_card)
+            return value
+
+        result_row = QFrame()
+        result_row.setObjectName("pricing_result_row")
+        row = QHBoxLayout(result_row)
+        row.setContentsMargins(10, 8, 10, 8)
+        row.setSpacing(10)
+        name = QLabel(title)
+        name.setObjectName("pricing_result_label")
+        value = QLabel(initial_value)
+        value.setObjectName("pricing_result_value")
+        row.addWidget(name)
+        row.addStretch()
+        row.addWidget(value)
+        layout.addWidget(result_row)
         return value
 
     def _update_effect_labels(self, moisture_percent):
@@ -356,38 +402,40 @@ class PricingSettingsPage(QWidget):
         if (
             base_price is None
             or base_price > 1_000_000_000
-            or weight_kg is None
-            or weight_kg > 1_000_000_000
             or moisture_score is None
             or not 0 <= moisture_score <= 100
             or pns_score is None
             or not 0 <= pns_score <= 100
         ):
-            self.moisture_contribution_result.setText("—")
-            self.pns_contribution_result.setText("—")
-            self.unit_price_result.setText("—")
+            self.moisture_contribution_result.setText("0")
+            self.pns_contribution_result.setText("0")
+            self.unit_price_result.setText("0")
             self._set_total_price_text(
                 "Enter valid inputs to calculate"
                 if self.total_price_unlocked
-                else "—"
+                else "0"
             )
             return
+        valid_weight = (
+            weight_kg is not None
+            and 0 <= weight_kg <= 1_000_000_000
+        )
         result = self.calculate_price(
             base_price,
             moisture_score,
             pns_score,
-            weight_kg,
+            weight_kg if valid_weight else None,
             self.moisture_effect_slider.value(),
         )
         if result is None:
-            message = "—"
+            message = "0"
             self.moisture_contribution_result.setText(message)
             self.pns_contribution_result.setText(message)
             self.unit_price_result.setText(message)
             self._set_total_price_text(
                 "Enter valid inputs to calculate"
                 if self.total_price_unlocked
-                else "—"
+                else "0"
             )
             return
 
@@ -401,9 +449,11 @@ class PricingSettingsPage(QWidget):
             f"₱ {result['price_per_kilo']:,.2f} / kg"
         )
         if not self.total_price_unlocked:
-            self._set_total_price_text("—")
+            self._set_total_price_text("0")
+        elif not valid_weight:
+            self._set_total_price_text("0")
         elif result["total_price"] is None:
-            self._set_total_price_text("Weight unavailable")
+            self._set_total_price_text("0")
         else:
             self._set_total_price_text(f"₱ {result['total_price']:,.2f}")
 
@@ -414,11 +464,72 @@ class PricingSettingsPage(QWidget):
     def _inputs_changed(self):
         self._update_calculation()
 
+    def set_current_weight(self, weight_kg):
+        if weight_kg is None:
+            self.weight_input.clear()
+        else:
+            self.weight_input.setText(f"{float(weight_kg):.3f}")
+        self._update_calculation()
+
+    def set_arduino_status(self, message):
+        normalized = message.casefold()
+        display_message = (
+            "Load cells connected"
+            if "live load-cell reading" in normalized
+            else message
+        )
+        self.arduino_status_label.setText(display_message)
+        state = (
+            "connected"
+            if "live load-cell reading" in normalized
+            else "error"
+            if any(
+                word in normalized
+                for word in ("not detected", "failed", "error", "could not")
+            )
+            else "waiting"
+        )
+        if self.arduino_status_label.property("status_state") != state:
+            self.arduino_status_label.setProperty("status_state", state)
+            self.arduino_status_label.style().unpolish(
+                self.arduino_status_label
+            )
+            self.arduino_status_label.style().polish(
+                self.arduino_status_label
+            )
+
+    def update_calibration_prompt(self, message):
+        normalized = message.casefold()
+        relevant_prompts = (
+            "load cell 1 calibration",
+            "load cell 2 calibration",
+            "empty load cell",
+            "place a known",
+            "remove the weight",
+            "send c",
+            "calibration complete",
+        )
+        if not normalized.startswith(relevant_prompts):
+            return
+        self.calibration_prompt_label.setText(message)
+        self.calibration_prompt_label.setVisible(True)
+        can_continue = normalized.startswith("send c")
+        self.calibration_continue_button.setEnabled(can_continue)
+        self.calibration_continue_button.setVisible(can_continue)
+
+    def _request_calibration_continue(self):
+        self.calibration_continue_button.setEnabled(False)
+        self.calibration_continue_button.setVisible(False)
+        self.calibration_prompt_label.setText(
+            "Continue command sent; waiting for Arduino..."
+        )
+        self.calibration_continue_requested.emit()
+
     def _set_total_price_text(self, text):
         self.total_price_result.setText(text)
         state = (
             "status"
-            if text.startswith(("Enter", "Weight"))
+            if text.startswith(("Enter", "Weight", "Waiting"))
             else "value"
         )
         if self.total_price_result.property("result_state") != state:
