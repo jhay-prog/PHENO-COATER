@@ -224,7 +224,7 @@ class PricingSettingsPage(QWidget):
             0,
             1_000_000_000,
             3,
-            "Waiting for load cells",
+            "",
         )
         self.weight_input.setReadOnly(True)
         self.weight_input.setAccessibleName("Current batch weight in kilograms")
@@ -234,7 +234,7 @@ class PricingSettingsPage(QWidget):
             0,
             100,
             2,
-            "Waiting for moisture score",
+            "",
         )
         self.moisture_score_input.setObjectName("pricing_moisture_score_input")
         self.moisture_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -243,7 +243,7 @@ class PricingSettingsPage(QWidget):
             0,
             100,
             2,
-            "Waiting for PNS grade score",
+            "",
         )
         self.pns_score_input.setObjectName("pricing_pns_score_input")
         self.pns_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
