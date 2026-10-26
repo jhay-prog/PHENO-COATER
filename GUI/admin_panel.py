@@ -133,7 +133,14 @@ class SystemOverviewPage(QWidget):
         status_layout.addWidget(status_title)
 
         self.status_values = {}
-        for name in ("Camera", "Arduino", "NIR Sensor", "Load Cell", "AI Model"):
+        for name in (
+            "Camera",
+            "Arduino",
+            "Infrared Sensor",
+            "NIR Sensor",
+            "Load Cell",
+            "AI Model",
+        ):
             row = QHBoxLayout()
             label = QLabel(name)
             label.setObjectName("dashboard_status_name")
@@ -157,6 +164,7 @@ class SystemOverviewPage(QWidget):
         states = {
             "Camera": self.dashboard.camera_connected,
             "Arduino": self.dashboard.arduino_connected,
+            "Infrared Sensor": self.dashboard.arduino_connected,
             "NIR Sensor": self.dashboard.nir_connected,
             "Load Cell": getattr(
                 self.dashboard,
@@ -167,11 +175,17 @@ class SystemOverviewPage(QWidget):
         }
         for name, connected in states.items():
             value = self.status_values[name]
-            value.setText(
-                ("CONNECTED" if connected else "NOT CONNECTED")
-                if name != "AI Model"
-                else ("READY" if connected else "NOT READY")
-            )
+            if name == "AI Model":
+                status_text = "READY" if connected else "NOT READY"
+            elif name == "Infrared Sensor" and connected:
+                status_text = (
+                    "COUNTING"
+                    if getattr(self.dashboard, "ir_batch_active", False)
+                    else "CONNECTED"
+                )
+            else:
+                status_text = "CONNECTED" if connected else "NOT CONNECTED"
+            value.setText(status_text)
             value.setProperty(
                 "connection_state",
                 "connected" if connected else "disconnected",

@@ -1,6 +1,7 @@
 # dashboard.py
 
 import re
+from datetime import date
 from math import isfinite
 
 import cv2
@@ -85,6 +86,7 @@ class Dashboard(QWidget):
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
     servo_sweep_status_received = Signal(int, bool)
+    bean_data_updated = Signal(object)
     EMEET_CAMERA_INDEX = 0
     GRAMS_PER_KILOGRAM = 1000.0
 
@@ -250,7 +252,9 @@ class Dashboard(QWidget):
                     weight_kg = self.parse_load_cell_weight_kg(message)
                     if weight_kg is not None:
                         self.current_weight_kg = weight_kg
+                        self.update_batch_weight_display(weight_kg)
                         self.current_weight_changed.emit(weight_kg)
+                        self.emit_bean_data_update()
                         self._set_arduino_status(
                             f"Live load-cell reading: {weight_kg:.3f} kg"
                         )
@@ -293,6 +297,8 @@ class Dashboard(QWidget):
             self.ir_final_count_expected = False
             self.total_bean_count = 0
             self.total_beans_value.setText("0")
+            self.update_current_seed_id(0)
+            self.emit_bean_data_update()
         else:
             self.ir_final_count_expected = self.ir_batch_active
             self.ir_batch_active = False
@@ -456,7 +462,23 @@ class Dashboard(QWidget):
     def _clear_current_weight(self):
         if self.current_weight_kg is not None:
             self.current_weight_kg = None
+            self.update_batch_weight_display(None)
             self.current_weight_changed.emit(None)
+            self.emit_bean_data_update()
+
+    def update_batch_weight_display(self, weight_kg):
+        if weight_kg is None:
+            self.batch_weight_value.setText("0")
+            return
+        self.batch_weight_value.setText(f"{weight_kg * self.GRAMS_PER_KILOGRAM:.2f}")
+
+    def update_current_seed_id(self, bean_number):
+        if bean_number <= 0:
+            self.current_seed_value.setText("0" * 12)
+            return
+        self.current_seed_value.setText(
+            f"{date.today():%Y%m%d}{bean_number:04d}"
+        )
 
     @staticmethod
     def parse_bean_count(message):
@@ -478,7 +500,27 @@ class Dashboard(QWidget):
             return False
         self.total_bean_count = count
         self.total_beans_value.setText(str(count))
+        self.update_current_seed_id(count)
+        self.emit_bean_data_update()
         return True
+
+    def emit_bean_data_update(self):
+        self.bean_data_updated.emit(
+            self.get_bean_data_snapshot()
+        )
+
+    def get_bean_data_snapshot(self):
+        return {
+            "bean_id": self.current_seed_value.text(),
+            "bean_count": self.total_bean_count,
+            "batch_weight_grams": (
+                self.current_weight_kg * self.GRAMS_PER_KILOGRAM
+                if self.current_weight_kg is not None
+                else None
+            ),
+            "moisture": None,
+            "quality": self.quality_value.text(),
+        }
 
     @staticmethod
     def is_nir_message(message):
@@ -734,6 +776,7 @@ class Dashboard(QWidget):
 
         quality = max(candidates, default=(0.0, "UNDEFINED"))[1]
         self.quality_value.setText(quality)
+        self.emit_bean_data_update()
         return quality
 
     def set_ai_model_path(self, model_path, log_result=True):
@@ -902,12 +945,14 @@ class Dashboard(QWidget):
         self.cards_layout.setVerticalSpacing(12)
 
         self.cards = [
-            self.create_card("CURRENT SEED", "", "Seed number"),
-            self.create_card("WEIGHT", "", "grams"),
+            self.create_card("CURRENT SEED", "0" * 12, "Bean ID"),
+            self.create_card("TOTAL BATCH WEIGHT", "0", "grams"),
             self.create_card("MOISTURE", "", "%"),
             self.create_card("QUALITY", "UNDEFINED", "Classification"),
             self.create_card("TOTAL BEANS", "0", "Beans processed"),
         ]
+        self.current_seed_value = self.cards[0].findChild(QLabel, "card_value")
+        self.batch_weight_value = self.cards[1].findChild(QLabel, "card_value")
         self.quality_value = self.cards[3].findChild(QLabel, "card_value")
         self.total_beans_value = self.cards[-1].findChild(QLabel, "card_value")
         self.card_columns = 1

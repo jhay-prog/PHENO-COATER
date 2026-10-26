@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from datetime import date
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,6 +44,7 @@ class FakeDashboard(QWidget):
     arduino_status_changed = Signal(str)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
+    bean_data_updated = Signal(object)
     servo_status_received = Signal(int, int)
     servo_sweep_status_received = Signal(int, bool)
 
@@ -59,12 +61,14 @@ class FakeDashboard(QWidget):
         self.arduino_connected = False
         self.arduino_status_message = "Arduino not detected."
         self.current_weight_kg = None
+        self.total_bean_count = 0
         self.arduino_serial = None
         self.arduino_baud_rate = 115200
         self.camera_source = 0
         self.nir_scan_delay_ms = 0
         self.nir_detected = False
         self.nir_connected = False
+        self.ir_batch_active = False
         self.nir_scanning = False
         self.servo_sweeping = {1: False, 2: False}
         self.camera_button = None
@@ -116,6 +120,15 @@ class FakeDashboard(QWidget):
 
     def set_nir_scanning(self, enabled):
         self.commands.append(("scan", enabled))
+
+    def get_bean_data_snapshot(self):
+        return {
+            "bean_id": "0" * 12,
+            "bean_count": self.total_bean_count,
+            "batch_weight_grams": None,
+            "moisture": None,
+            "quality": "UNDEFINED",
+        }
 
     def start_system(self):
         self.commands.append(("sample", True))
@@ -236,6 +249,10 @@ class HardwareCompatibilityTests(unittest.TestCase):
 
         self.assertEqual(dashboard.total_bean_count, 2)
         self.assertEqual(dashboard.total_beans_value.text(), "2")
+        self.assertEqual(
+            dashboard.current_seed_value.text(),
+            f"{date.today():%Y%m%d}0002",
+        )
 
         dashboard.set_ir_sample_active(False)
         final_count = b"FINAL_BEAN_COUNT: 2\n"
@@ -253,6 +270,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
             dashboard.update_total_bean_count("FINAL_BEAN_COUNT: 4")
         )
         self.assertEqual(dashboard.total_beans_value.text(), "0")
+        self.assertEqual(dashboard.current_seed_value.text(), "0" * 12)
 
     def test_arduino_connection_does_not_start_ir_sample_automatically(self):
         dashboard = Dashboard()
@@ -290,6 +308,25 @@ class HardwareCompatibilityTests(unittest.TestCase):
         dashboard.arduino_port = "COM-test"
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
         self.assertEqual(dashboard.total_beans_value.text(), "3")
+        self.assertEqual(
+            dashboard.current_seed_value.text(),
+            f"{date.today():%Y%m%d}0003",
+        )
+
+    def test_dashboard_displays_current_combined_load_as_batch_weight(self):
+        dashboard = Dashboard()
+        self.assertEqual(dashboard.batch_weight_value.text(), "0")
+
+        dashboard.update_batch_weight_display(1.275)
+
+        self.assertEqual(dashboard.batch_weight_value.text(), "1275.00")
+        self.assertEqual(
+            dashboard.cards[1].findChild(QLabel, "card_title").text(),
+            "TOTAL BATCH WEIGHT",
+        )
+
+        dashboard.update_batch_weight_display(None)
+        self.assertEqual(dashboard.batch_weight_value.text(), "0")
 
     def test_dashboard_keeps_original_element_sizes_with_compact_spacing(self):
         scroll = QScrollArea()
@@ -685,6 +722,11 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertTrue(page.calibration_prompt_label.isHidden())
         self.assertTrue(page.calibration_continue_button.isHidden())
+        page.set_arduino_status(
+            "Connected on COM7; waiting for Arduino sensor readings."
+        )
+        self.assertTrue(page.arduino_status_label.isHidden())
+        self.assertEqual(page.arduino_status_label.text(), "")
         page.set_arduino_status("Live load-cell reading: 2.000 kg")
         self.assertEqual(
             page.arduino_status_label.property("status_state"),
@@ -737,6 +779,92 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.empty_state.text(), "")
         page.deleteLater()
 
+    def test_bean_data_tables_update_from_dashboard_metrics(self):
+        page = BeanDataSheetPage()
+        page.update_dashboard_metrics(
+            {
+                "bean_id": "202610260001",
+                "bean_count": 1,
+                "batch_weight_grams": 125.5,
+                "moisture": None,
+                "quality": "GOOD",
+            }
+        )
+        self.assertEqual(page.current_bean_number_value.text(), "1")
+
+        table = page.data_table
+        self.assertEqual(table.rowCount(), 1)
+        self.assertEqual(table.item(0, 0).text(), "202610260001")
+        self.assertEqual(table.item(0, 1).text(), "125.50")
+        self.assertEqual(table.item(0, 2).text(), "1")
+        self.assertEqual(table.item(0, 4).text(), "GOOD")
+        self.assertEqual(table.item(0, 5).text(), "100.00%")
+
+        page.show_table("PNS Grade Sample")
+        self.assertEqual(page.data_table.rowCount(), 1)
+        self.assertEqual(page.data_table.item(0, 3).text(), "1")
+        self.assertEqual(page.data_table.item(0, 4).text(), "1")
+        self.assertEqual(page.data_table.item(0, 2).text(), "1A")
+        self.assertEqual(page.data_table.item(0, 8).text(), "100")
+
+        page.update_dashboard_metrics(
+            {
+                "bean_id": "202610260002",
+                "bean_count": 2,
+                "batch_weight_grams": 251.0,
+                "moisture": None,
+                "quality": "MOLDY",
+            }
+        )
+        self.assertEqual(page.current_bean_number_value.text(), "2")
+        self.assertEqual(page.data_table.rowCount(), 2)
+        self.assertEqual(page.data_table.item(1, 0).text(), "202610260002")
+        self.assertEqual(page.data_table.item(1, 3).text(), "2")
+        self.assertEqual(page.data_table.item(1, 2).text(), "Substandard")
+        self.assertEqual(page.data_table.item(1, 4).text(), "1")
+        self.assertEqual(page.data_table.item(1, 5).text(), "1")
+        self.assertEqual(page.data_table.item(1, 8).text(), "60")
+
+        page.show_table("Beans in 100g Sample")
+        self.assertEqual(page.data_table.item(0, 5).text(), "100.00%")
+        self.assertEqual(page.data_table.item(0, 6).text(), "0.00%")
+        self.assertEqual(page.data_table.item(0, 8).text(), "0.00%")
+        self.assertEqual(page.data_table.item(1, 5).text(), "0.00%")
+        self.assertEqual(page.data_table.item(1, 6).text(), "100.00%")
+        self.assertEqual(page.data_table.item(1, 8).text(), "0.00%")
+
+        page.update_dashboard_metrics(
+            {
+                "bean_id": "202610260003",
+                "bean_count": 3,
+                "batch_weight_grams": 376.5,
+                "moisture": None,
+                "quality": "INSECT-DAMAGED",
+            }
+        )
+        self.assertEqual(page.data_table.item(2, 4).text(), "INSECT-DAMAGED")
+        self.assertEqual(page.data_table.item(2, 8).text(), "100.00%")
+
+        page.update_dashboard_metrics(
+            {
+                "bean_id": "0" * 12,
+                "bean_count": 0,
+                "batch_weight_grams": None,
+                "moisture": None,
+                "quality": "UNDEFINED",
+            }
+        )
+        self.assertEqual(page.current_bean_number_value.text(), "0")
+        page.show_table("PNS Grade Sample")
+        self.assertEqual(page.data_table.rowCount(), 3)
+        self.assertEqual(page.data_table.item(0, 0).text(), "202610260001")
+
+        page.show_table("Moisture Content Sample")
+        self.assertEqual(page.data_table.rowCount(), 3)
+        self.assertEqual(page.data_table.item(0, 0).text(), "202610260001")
+        self.assertEqual(page.data_table.item(0, 1).text(), "--")
+        page.deleteLater()
+
     def test_admin_panel_reuses_dashboard_and_blocks_commands_after_logout(self):
         session = AdminSession()
         session.grant_admin()
@@ -767,6 +895,23 @@ class HardwareCompatibilityTests(unittest.TestCase):
             overview.status_values["Load Cell"].text(),
             "NOT CONNECTED",
         )
+        self.assertEqual(
+            overview.status_values["Infrared Sensor"].text(),
+            "NOT CONNECTED",
+        )
+        dashboard.arduino_connected = True
+        overview.refresh_status()
+        self.assertEqual(
+            overview.status_values["Infrared Sensor"].text(),
+            "CONNECTED",
+        )
+        dashboard.ir_batch_active = True
+        overview.refresh_status()
+        self.assertEqual(
+            overview.status_values["Infrared Sensor"].text(),
+            "COUNTING",
+        )
+        dashboard.ir_batch_active = False
         dashboard.current_weight_kg = 1.25
         overview.refresh_status()
         self.assertEqual(

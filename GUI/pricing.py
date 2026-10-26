@@ -571,13 +571,16 @@ class PricingSettingsPage(QWidget):
     def set_arduino_status(self, message):
         normalized = message.casefold()
         is_not_detected = "not detected" in normalized
+        is_connection_notice = normalized.startswith("connected on ")
         display_message = (
             "Load cells connected"
             if "live load-cell reading" in normalized
-            else "" if is_not_detected else message
+            else "" if is_not_detected or is_connection_notice else message
         )
         self.arduino_status_label.setText(display_message)
-        self.arduino_status_label.setVisible(not is_not_detected)
+        self.arduino_status_label.setVisible(
+            not is_not_detected and not is_connection_notice
+        )
         state = (
             "connected"
             if "live load-cell reading" in normalized

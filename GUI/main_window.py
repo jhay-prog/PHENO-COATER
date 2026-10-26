@@ -180,6 +180,12 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(pricing_scroll)
 
         self.bean_data_sheet_page = BeanDataSheetPage()
+        self.dashboard_page.bean_data_updated.connect(
+            self.bean_data_sheet_page.update_dashboard_metrics
+        )
+        self.bean_data_sheet_page.update_dashboard_metrics(
+            self.dashboard_page.get_bean_data_snapshot()
+        )
         bean_data_sheet_scroll = QScrollArea()
         bean_data_sheet_scroll.setObjectName('bean_data_sheet_scroll')
         bean_data_sheet_scroll.setWidgetResizable(True)
