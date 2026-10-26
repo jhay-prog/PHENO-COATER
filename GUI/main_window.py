@@ -45,10 +45,10 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(640, 480)
         self.setup_ui()
         self.dashboard_page.start_system_button.clicked.connect(
-            self.dashboard_page.start_camera
+            self.dashboard_page.start_system
         )
         self.dashboard_page.stop_system_button.clicked.connect(
-            self.dashboard_page.stop_camera
+            self.dashboard_page.stop_system
         )
 
     def resizeEvent(self, event):

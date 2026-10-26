@@ -151,3 +151,32 @@ class AiModelIntegrationTests(unittest.TestCase):
         dashboard.stop_camera()
         dashboard.arduino_timer.stop()
         dashboard.close()
+
+    def test_dashboard_displays_highest_confidence_ai_quality(self):
+        class FakeBox:
+            def __init__(self, confidence, class_id):
+                self.conf = [confidence]
+                self.cls = [class_id]
+
+        class FakeResult:
+            names = {0: "good", 1: "insect_damaged"}
+            boxes = [FakeBox(0.75, 0), FakeBox(0.91, 1)]
+
+        with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
+            with patch.object(Dashboard, "update_arduino_status"):
+                dashboard = Dashboard()
+
+        dashboard._on_ai_inference_completed(
+            dashboard.ai_inference_token,
+            FakeResult(),
+            "",
+        )
+
+        self.assertEqual(dashboard.quality_value.text(), "INSECT-DAMAGED")
+        self.assertEqual(
+            dashboard.update_quality_from_ai_result(None),
+            "UNDEFINED",
+        )
+        self.assertEqual(dashboard.quality_value.text(), "UNDEFINED")
+        dashboard.arduino_timer.stop()
+        dashboard.close()

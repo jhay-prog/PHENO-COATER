@@ -117,6 +117,14 @@ class FakeDashboard(QWidget):
     def set_nir_scanning(self, enabled):
         self.commands.append(("scan", enabled))
 
+    def start_system(self):
+        self.commands.append(("sample", True))
+        self.start_camera()
+
+    def stop_system(self):
+        self.commands.append(("sample", False))
+        self.stop_camera()
+
     def continue_load_cell_calibration(self):
         self.commands.append(("calibration-continue",))
 
@@ -212,6 +220,77 @@ class HardwareCompatibilityTests(unittest.TestCase):
             0.25,
         )
 
+    def test_ir_bean_count_messages_update_dashboard_total(self):
+        dashboard = Dashboard()
+        self.assertEqual(dashboard.total_beans_value.text(), "0")
+
+        dashboard.set_ir_sample_active(True)
+        serial_data = b"BEAN_COUNT: 1\nBEAN_COUNT: 2\nBEAN_COUNT: invalid\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=False,
+            in_waiting=len(serial_data),
+            read=lambda size: serial_data,
+        )
+        dashboard.arduino_port = "COM-test"
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_bean_count, 2)
+        self.assertEqual(dashboard.total_beans_value.text(), "2")
+
+        dashboard.set_ir_sample_active(False)
+        final_count = b"FINAL_BEAN_COUNT: 2\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            in_waiting=len(final_count),
+            read=lambda size: final_count,
+        )
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertEqual(dashboard.total_beans_value.text(), "2")
+
+    def test_unsolicited_arduino_counts_are_ignored_outside_a_batch(self):
+        dashboard = Dashboard()
+        self.assertFalse(dashboard.update_total_bean_count("BEAN_COUNT: 4"))
+        self.assertFalse(
+            dashboard.update_total_bean_count("FINAL_BEAN_COUNT: 4")
+        )
+        self.assertEqual(dashboard.total_beans_value.text(), "0")
+
+    def test_arduino_connection_does_not_start_ir_sample_automatically(self):
+        dashboard = Dashboard()
+        commands = []
+        dashboard.write_arduino_command = commands.append
+
+        dashboard.initialize_nir_scanner()
+
+        self.assertNotIn("START_SAMPLE\n", commands)
+
+    def test_start_and_stop_system_control_ir_sample(self):
+        dashboard = Dashboard()
+        commands = []
+        dashboard.write_arduino_command = commands.append
+        dashboard.arduino_serial = SimpleNamespace(is_open=True)
+        dashboard.start_camera = lambda: None
+        dashboard.stop_camera = lambda: None
+        dashboard.set_ir_sample_active(True)
+        dashboard.update_total_bean_count("BEAN_COUNT: 6")
+
+        dashboard.start_system()
+        self.assertTrue(dashboard.ir_sample_requested)
+        self.assertEqual(commands[-1], "START_SAMPLE\n")
+        self.assertEqual(dashboard.total_beans_value.text(), "0")
+
+        dashboard.stop_system()
+        self.assertFalse(dashboard.ir_sample_requested)
+        self.assertEqual(commands[-1], "STOP_SAMPLE\n")
+
+        final_count = b"FINAL_BEAN_COUNT: 3\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            in_waiting=len(final_count),
+            read=lambda size: final_count,
+        )
+        dashboard.arduino_port = "COM-test"
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertEqual(dashboard.total_beans_value.text(), "3")
+
     def test_dashboard_keeps_original_element_sizes_with_compact_spacing(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -274,6 +353,35 @@ class HardwareCompatibilityTests(unittest.TestCase):
         dashboard.camera_timer.stop()
         dashboard.arduino_timer.stop()
         scroll.close()
+
+    def test_dashboard_shows_total_beans_as_fifth_evenly_spaced_card(self):
+        dashboard = Dashboard()
+        dashboard.resize(1100, 700)
+        dashboard.update_responsive_layout()
+        dashboard.show()
+        self.application.processEvents()
+
+        self.assertEqual(len(dashboard.cards), 5)
+        self.assertEqual(dashboard.card_columns, 5)
+        self.assertEqual(
+            dashboard.cards_layout.count(),
+            5,
+        )
+        total_beans_labels = [
+            label
+            for label in dashboard.cards[-1].findChildren(QLabel)
+            if label.text() == "TOTAL BEANS"
+        ]
+        self.assertEqual(len(total_beans_labels), 1)
+        self.assertEqual(
+            dashboard.cards_layout.getItemPosition(4),
+            (0, 4, 1, 1),
+        )
+        card_widths = [card.width() for card in dashboard.cards]
+        self.assertLessEqual(max(card_widths) - min(card_widths), 4)
+        dashboard.camera_timer.stop()
+        dashboard.arduino_timer.stop()
+        dashboard.close()
 
     def test_camera_usage_setting_only_controls_permission_until_user_starts_camera(self):
         dashboard = FakeDashboard()
@@ -374,6 +482,66 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(str(result["price_per_kilo"]), "0.01")
         self.assertEqual(str(result["total_price"]), "0.01")
 
+    def test_pns_grading_matches_each_table_grade_and_substandard_limits(self):
+        cases = (
+            (100, 3, 3, 3, 100, "1A"),
+            (101, 3, 3, 3, 95, "1B"),
+            (111, 3, 3, 3, 90, "1C"),
+            (100, 4, 8, 6, 85, "2A"),
+            (101, 4, 8, 6, 80, "2B"),
+            (111, 4, 8, 6, 75, "2C"),
+            (121, 0, 0, 0, 60, "Substandard"),
+            (100, 4.01, 0, 0, 60, "Substandard"),
+            (100, 3, 8.01, 0, 60, "Substandard"),
+            (100, 3, 3, 6.01, 60, "Substandard"),
+        )
+        for count, moldy, slaty, defected, score, grade in cases:
+            with self.subTest(
+                count=count,
+                moldy=moldy,
+                slaty=slaty,
+                defected=defected,
+            ):
+                self.assertEqual(
+                    PricingSettingsPage.calculate_pns_grade(
+                        count,
+                        moldy,
+                        slaty,
+                        defected,
+                    ),
+                    {"score": score, "grade": grade},
+                )
+
+    def test_pns_grading_requires_complete_and_valid_sample_values(self):
+        self.assertIsNone(
+            PricingSettingsPage.calculate_pns_grade(100, None, 0, 0)
+        )
+        for values in (
+            (0, 0, 0, 0),
+            (100.5, 0, 0, 0),
+            (100, -0.1, 0, 0),
+            (100, 0, 0, 100.1),
+        ):
+            with self.subTest(values=values):
+                with self.assertRaises(ValueError):
+                    PricingSettingsPage.calculate_pns_grade(*values)
+
+    def test_pricing_pns_score_is_calculated_from_sensor_and_ai_sample_data(self):
+        page = PricingSettingsPage()
+        self.assertTrue(page.pns_score_input.isReadOnly())
+        self.assertEqual(page.pns_score_input.text(), "")
+        self.assertEqual(page.pns_grade_label.text(), "")
+
+        page.set_pns_sample_data(105, 4, 5, 4)
+        self.assertEqual(page.pns_score_input.text(), "80")
+        self.assertEqual(page.pns_grade_label.text(), "2B")
+        self.assertIsNone(
+            page.findChild(QLineEdit, "pricing_pns_bean_count_input")
+        )
+        with self.assertRaises(ValueError):
+            page.set_pns_sample_data(100, 40, 40, 30)
+        page.deleteLater()
+
     def test_pricing_score_weights_always_total_one_hundred_percent(self):
         pricing_page = PricingSettingsPage()
         self.assertEqual(
@@ -408,7 +576,8 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(pricing_page.pns_effect_label.text(), "65%")
         pricing_page.base_price_input.setText("200")
         pricing_page.moisture_score_input.setText("88")
-        pricing_page.pns_score_input.setText("90")
+        pricing_page.set_pns_sample_data(115, 0, 0, 0)
+        self.assertEqual(pricing_page.pns_score_input.text(), "90")
         self.assertEqual(pricing_page.moisture_contribution_result.text(), "30.80")
         self.assertEqual(pricing_page.pns_contribution_result.text(), "58.50")
         self.assertEqual(pricing_page.unit_price_result.text(), "₱ 178.60 / kg")
@@ -445,7 +614,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page = PricingSettingsPage()
         page.base_price_input.setText("200")
         page.moisture_score_input.setText("88")
-        page.pns_score_input.setText("90")
+        page.set_pns_sample_data(115, 0, 0, 0)
         weight_kg = Dashboard.parse_load_cell_weight_kg(
             "Load Cell 1: 125.00 g | Load Cell 2: 125.00 g"
         )
@@ -474,7 +643,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page = PricingSettingsPage()
         page.base_price_input.setText("200.75")
         page.moisture_score_input.setText("88.5")
-        page.pns_score_input.setText("90.25")
+        page.set_pns_sample_data(115, 0, 0, 0)
         page.set_current_weight(2.5)
         self.assertEqual(page.base_price_input.text(), "200.75")
         self.assertEqual(page.base_price_input.validator().decimals(), 2)
@@ -484,11 +653,11 @@ class HardwareCompatibilityTests(unittest.TestCase):
             page.moisture_score_input.validator().decimals(),
             2,
         )
-        self.assertEqual(page.pns_score_input.text(), "90.25")
-        self.assertEqual(page.unit_price_result.text(), "₱ 179.42 / kg")
+        self.assertEqual(page.pns_score_input.text(), "90")
+        self.assertEqual(page.unit_price_result.text(), "₱ 179.17 / kg")
         self.assertEqual(page.total_price_result.text(), "")
         page.save_inputs_button.click()
-        self.assertEqual(page.total_price_result.text(), "₱ 448.55")
+        self.assertEqual(page.total_price_result.text(), "₱ 447.92")
         page.deleteLater()
 
     def test_pricing_total_is_not_shown_when_scores_are_missing(self):

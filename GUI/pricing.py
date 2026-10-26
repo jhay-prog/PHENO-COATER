@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtGui import QDoubleValidator
@@ -86,6 +86,62 @@ class PricingSettingsPage(QWidget):
             "price_per_kilo": price_per_kilo_result,
             "total_price": total_price,
         }
+
+    @staticmethod
+    def calculate_pns_grade(
+        bean_count,
+        moldy_percent,
+        slaty_percent,
+        defected_percent,
+    ):
+        values = (
+            bean_count,
+            moldy_percent,
+            slaty_percent,
+            defected_percent,
+        )
+        if any(value is None for value in values):
+            return None
+        try:
+            count = Decimal(str(bean_count))
+            moldy, slaty, defected = (
+                Decimal(str(value))
+                for value in values[1:]
+            )
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError("PNS sample values must be numeric.") from exc
+
+        if (
+            not count.is_finite()
+            or count <= 0
+            or count != count.to_integral_value()
+            or any(
+                not value.is_finite() or not 0 <= value <= 100
+                for value in (moldy, slaty, defected)
+            )
+        ):
+            raise ValueError("PNS sample values are outside their valid ranges.")
+
+        if count <= 100:
+            grade_index = 0
+        elif count <= 110:
+            grade_index = 1
+        elif count <= 120:
+            grade_index = 2
+        else:
+            return {"score": 60, "grade": "Substandard"}
+
+        if moldy <= 3 and slaty <= 3 and defected <= 3:
+            return {
+                "score": 100 - grade_index * 5,
+                "grade": ("1A", "1B", "1C")[grade_index],
+            }
+        if moldy <= 4 and slaty <= 8 and defected <= 6:
+            return {
+                "score": 85 - grade_index * 5,
+                "grade": ("2A", "2B", "2C")[grade_index],
+            }
+        return {"score": 60, "grade": "Substandard"}
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -247,8 +303,21 @@ class PricingSettingsPage(QWidget):
         )
         self.pns_score_input.setObjectName("pricing_pns_score_input")
         self.pns_score_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pns_score_input.setReadOnly(True)
         self.moisture_score_input.textChanged.connect(self._inputs_changed)
-        self.pns_score_input.textChanged.connect(self._inputs_changed)
+        pns_grade_row = QWidget()
+        pns_grade_layout = QHBoxLayout(pns_grade_row)
+        pns_grade_layout.setContentsMargins(0, 0, 0, 0)
+        pns_grade_layout.setSpacing(8)
+        pns_grade_layout.addWidget(
+            self._input_with_suffix(self.pns_score_input, "/ 100"),
+            1,
+        )
+        pns_grade_layout.addWidget(QLabel("Grade"))
+        self.pns_grade_label = QLabel("")
+        self.pns_grade_label.setObjectName("pricing_pns_grade")
+        self.pns_grade_label.setMinimumWidth(36)
+        pns_grade_layout.addWidget(self.pns_grade_label)
         value_form.addRow(
             self._create_form_label("Current Weight (kg)"),
             self._input_with_suffix(self.weight_input, "kg"),
@@ -259,7 +328,7 @@ class PricingSettingsPage(QWidget):
         )
         value_form.addRow(
             self._create_form_label("PNS grade score"),
-            self._input_with_suffix(self.pns_score_input, "/ 100"),
+            pns_grade_row,
         )
         result_layout.addLayout(value_form)
 
@@ -458,6 +527,45 @@ class PricingSettingsPage(QWidget):
             self.weight_input.clear()
         else:
             self.weight_input.setText(f"{float(weight_kg):.3f}")
+        self._update_calculation()
+
+    def set_pns_sample_data(
+        self,
+        bean_count,
+        moldy_count,
+        slaty_count,
+        defected_count,
+    ):
+        """Display a completed 100g sample classified by the IR sensor and AI."""
+        counts = (bean_count, moldy_count, slaty_count, defected_count)
+        try:
+            values = tuple(Decimal(str(value)) for value in counts)
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError("PNS sample counts must be integers.") from exc
+        if any(
+            not value.is_finite()
+            or value != value.to_integral_value()
+            or value < 0
+            for value in values
+        ):
+            raise ValueError("PNS sample counts must be non-negative integers.")
+
+        total, moldy, slaty, defected = values
+        if (
+            total == 0
+            or any(value > total for value in (moldy, slaty, defected))
+            or moldy + slaty + defected > total
+        ):
+            raise ValueError("PNS sample counts are inconsistent.")
+
+        result = self.calculate_pns_grade(
+            total,
+            moldy * Decimal(100) / total,
+            slaty * Decimal(100) / total,
+            defected * Decimal(100) / total,
+        )
+        self.pns_score_input.setText(str(result["score"]))
+        self.pns_grade_label.setText(result["grade"])
         self._update_calculation()
 
     def set_arduino_status(self, message):

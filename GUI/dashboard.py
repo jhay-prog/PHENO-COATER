@@ -34,6 +34,19 @@ from PySide6.QtMultimedia import QMediaDevices
 from .animated_button import AnimatedButton
 
 
+AI_CLASS_NAMES = (
+    "GOOD",
+    "MOLDY",
+    "SLANTY",
+    "GERMINATED",
+    "INSECT-DAMAGED",
+    "BLACK",
+    "FLAT",
+    "DOUBLE",
+)
+AI_CONFIDENCE_THRESHOLD = 0.5
+
+
 class _InferenceSignals(QObject):
     completed = Signal(int, object, str)
 
@@ -114,6 +127,11 @@ class Dashboard(QWidget):
         self.nir_connected = False
         self.serial_buffer = ""
         self.current_weight_kg = None
+        self.total_bean_count = 0
+        self.ir_sample_requested = False
+        self.ir_sample_command_sent = False
+        self.ir_batch_active = False
+        self.ir_final_count_expected = False
         self.nir_detected = False
         self.nir_scanning = False
         self.servo_minimum_angles = {1: 20, 2: 20}
@@ -144,6 +162,7 @@ class Dashboard(QWidget):
             self.render_camera_frame(self.last_frame)
 
     def closeEvent(self, event):
+        self.set_ir_sample_active(False)
         self.stop_camera()
         self.arduino_timer.stop()
         self.set_nir_scanning(False)
@@ -194,11 +213,12 @@ class Dashboard(QWidget):
                     timeout=0.05,
                 )
                 self.arduino_port = port.device
+                self.ir_sample_command_sent = False
                 self.system_log_received.emit(
                     f"Arduino serial connected on {port.device}."
                 )
                 self._set_arduino_status(
-                    f"Connected on {port.device}; waiting for HX711 readings. "
+                    f"Connected on {port.device}; waiting for Arduino sensor readings. "
                     "Check the sketch baud rate and finish calibration if prompted."
                 )
                 QTimer.singleShot(1500, self.initialize_nir_scanner)
@@ -224,6 +244,7 @@ class Dashboard(QWidget):
             for line in lines:
                 message = line.strip()
                 if message:
+                    self.update_total_bean_count(message)
                     self.nir_message_received.emit(message)
                     self.handle_servo_status(message)
                     weight_kg = self.parse_load_cell_weight_kg(message)
@@ -265,11 +286,47 @@ class Dashboard(QWidget):
         self.nir_scanning = enabled
         self.send_nir_scan_command()
 
+    def set_ir_sample_active(self, enabled):
+        self.ir_sample_requested = bool(enabled)
+        if self.ir_sample_requested:
+            self.ir_batch_active = True
+            self.ir_final_count_expected = False
+            self.total_bean_count = 0
+            self.total_beans_value.setText("0")
+        else:
+            self.ir_final_count_expected = self.ir_batch_active
+            self.ir_batch_active = False
+        if self.arduino_serial is None or not self.arduino_serial.is_open:
+            self.ir_sample_command_sent = False
+            return
+        self.write_arduino_command(
+            "START_SAMPLE\n" if self.ir_sample_requested else "STOP_SAMPLE\n"
+        )
+        self.ir_sample_command_sent = (
+            self.ir_sample_requested
+            and self.arduino_serial is not None
+            and self.arduino_serial.is_open
+        )
+
+    def start_system(self):
+        self.set_ir_sample_active(True)
+        self.start_camera()
+
+    def stop_system(self):
+        self.set_ir_sample_active(False)
+        self.stop_camera()
+
     def set_nir_scan_delay(self, delay_ms):
         self.nir_scan_delay_ms = max(0, min(int(delay_ms), 60000))
         self.send_nir_scan_delay()
 
     def initialize_nir_scanner(self):
+        if self.ir_sample_requested and not self.ir_sample_command_sent:
+            self.write_arduino_command("START_SAMPLE\n")
+            self.ir_sample_command_sent = (
+                self.arduino_serial is not None
+                and self.arduino_serial.is_open
+            )
         self.send_nir_scan_delay()
         self.send_nir_scan_command()
         for motor in (1, 2):
@@ -393,12 +450,35 @@ class Dashboard(QWidget):
         self.arduino_serial = None
         self.arduino_port = None
         self.serial_buffer = ""
+        self.ir_sample_command_sent = False
         self._clear_current_weight()
 
     def _clear_current_weight(self):
         if self.current_weight_kg is not None:
             self.current_weight_kg = None
             self.current_weight_changed.emit(None)
+
+    @staticmethod
+    def parse_bean_count(message):
+        match = re.fullmatch(
+            r"(?:BEAN_COUNT|FINAL_BEAN_COUNT):\s*(\d+)",
+            message.strip(),
+        )
+        return int(match.group(1)) if match is not None else None
+
+    def update_total_bean_count(self, message):
+        count = self.parse_bean_count(message)
+        if count is None:
+            return False
+        if message.strip().startswith("FINAL_BEAN_COUNT:"):
+            if not self.ir_final_count_expected:
+                return False
+            self.ir_final_count_expected = False
+        elif not self.ir_batch_active:
+            return False
+        self.total_bean_count = count
+        self.total_beans_value.setText(str(count))
+        return True
 
     @staticmethod
     def is_nir_message(message):
@@ -445,7 +525,7 @@ class Dashboard(QWidget):
         elif width < 900:
             columns = 2
         else:
-            columns = 4
+            columns = 5
 
         if columns != getattr(self, "card_columns", None):
             self.card_columns = columns
@@ -625,16 +705,43 @@ class Dashboard(QWidget):
             self.ai_model = None
             self.last_ai_result = None
             self.last_ai_frame = None
+            self.update_quality_from_ai_result(None)
             self.ai_model_error = error
             self.system_log_received.emit(error)
             return
         self.last_ai_result = result
+        self.update_quality_from_ai_result(result)
+
+    def update_quality_from_ai_result(self, result):
+        boxes = getattr(result, "boxes", None)
+        names = getattr(result, "names", {})
+        candidates = []
+        if boxes is not None:
+            for box in boxes:
+                confidence = float(box.conf[0])
+                if confidence < AI_CONFIDENCE_THRESHOLD:
+                    continue
+                class_id = int(box.cls[0])
+                if isinstance(names, dict):
+                    raw_name = names.get(class_id, str(class_id))
+                elif 0 <= class_id < len(names):
+                    raw_name = names[class_id]
+                else:
+                    continue
+                normalized = str(raw_name).strip().upper().replace("_", "-")
+                if normalized in AI_CLASS_NAMES:
+                    candidates.append((confidence, normalized))
+
+        quality = max(candidates, default=(0.0, "UNDEFINED"))[1]
+        self.quality_value.setText(quality)
+        return quality
 
     def set_ai_model_path(self, model_path, log_result=True):
         model_path = str(model_path or "").strip()
         self.ai_inference_token += 1
         self.last_ai_result = None
         self.last_ai_frame = None
+        self.update_quality_from_ai_result(None)
         if not model_path:
             self.ai_model = None
             self.ai_model_path = ""
@@ -798,8 +905,11 @@ class Dashboard(QWidget):
             self.create_card("CURRENT SEED", "", "Seed number"),
             self.create_card("WEIGHT", "", "grams"),
             self.create_card("MOISTURE", "", "%"),
-            self.create_card("QUALITY", "", "Classification"),
+            self.create_card("QUALITY", "UNDEFINED", "Classification"),
+            self.create_card("TOTAL BEANS", "0", "Beans processed"),
         ]
+        self.quality_value = self.cards[3].findChild(QLabel, "card_value")
+        self.total_beans_value = self.cards[-1].findChild(QLabel, "card_value")
         self.card_columns = 1
         self.reflow_cards(self.card_columns)
         main_layout.addLayout(self.cards_layout)
