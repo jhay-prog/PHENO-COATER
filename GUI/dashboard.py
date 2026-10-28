@@ -7,6 +7,12 @@ from math import isfinite
 import cv2
 
 from .ai_model import get_configured_ai_model_path, load_yolo_model
+from .camera_controls import (
+    CAMERA_CONTROL_DEFAULTS,
+    CAMERA_STREAM_PROPERTY_NAMES,
+    apply_camera_controls,
+    apply_camera_stream_settings,
+)
 
 try:
     import serial
@@ -80,6 +86,7 @@ class _InferenceTask(QRunnable):
 class Dashboard(QWidget):
 
     camera_status_changed = Signal(str)
+    camera_controls_status_changed = Signal(str)
     current_weight_changed = Signal(object)
     arduino_status_changed = Signal(str)
     system_log_received = Signal(str)
@@ -99,6 +106,9 @@ class Dashboard(QWidget):
         self.arduino_baud_rate = 115200
         self.nir_scan_delay_ms = 0
         self.camera_capture = None
+        self.camera_control_values = CAMERA_CONTROL_DEFAULTS.copy()
+        self.camera_control_overrides = {}
+        self.camera_stream_overrides = {}
         self.camera_enabled = False
         self.camera_usage_enabled = True
         self.camera_usage_button = None
@@ -658,6 +668,20 @@ class Dashboard(QWidget):
                 )
                 continue
             if capture is not None and capture.isOpened():
+                if self.camera_stream_overrides:
+                    unsupported_stream_settings = apply_camera_stream_settings(
+                        capture,
+                        self.camera_stream_overrides,
+                    )
+                    self._update_camera_stream_status(
+                        unsupported_stream_settings
+                    )
+                if self.camera_control_overrides:
+                    unsupported_controls = apply_camera_controls(
+                        capture,
+                        self.camera_control_overrides,
+                    )
+                    self._update_camera_controls_status(unsupported_controls)
                 try:
                     has_frame, frame = capture.read()
                 except (cv2.error, OSError) as exc:
@@ -668,14 +692,81 @@ class Dashboard(QWidget):
                     continue
                 if not has_frame or frame is None:
                     capture.release()
-                    continue
+                    if not self.camera_stream_overrides:
+                        continue
+
+                    self.system_log_received.emit(
+                        "The selected camera resolution or frame rate produced "
+                        "no frames; retrying with the camera's default mode."
+                    )
+                    self.camera_stream_overrides.clear()
+                    try:
+                        capture = self.open_camera(source)
+                    except (cv2.error, OSError) as exc:
+                        self.system_log_received.emit(
+                            f"Camera could not be reopened in default mode: {exc}"
+                        )
+                        continue
+                    if capture is None or not capture.isOpened():
+                        if capture is not None:
+                            capture.release()
+                        continue
+                    if self.camera_control_overrides:
+                        unsupported_controls = apply_camera_controls(
+                            capture,
+                            self.camera_control_overrides,
+                        )
+                        self._update_camera_controls_status(
+                            unsupported_controls
+                        )
+                    try:
+                        has_frame, frame = capture.read()
+                    except (cv2.error, OSError) as exc:
+                        self.system_log_received.emit(
+                            f"Camera frame read failed in default mode: {exc}"
+                        )
+                        capture.release()
+                        continue
+                    if not has_frame or frame is None:
+                        capture.release()
+                        continue
+                    self.camera_controls_status_changed.emit(
+                        "Selected resolution/FPS is unavailable; using the "
+                        "camera's default mode."
+                    )
+                else:
+                    requested_width = self.camera_stream_overrides.get(
+                        cv2.CAP_PROP_FRAME_WIDTH
+                    )
+                    requested_height = self.camera_stream_overrides.get(
+                        cv2.CAP_PROP_FRAME_HEIGHT
+                    )
+                    actual_height, actual_width = frame.shape[:2]
+                    if (
+                        requested_width is not None
+                        and requested_height is not None
+                        and (actual_width, actual_height)
+                        != (requested_width, requested_height)
+                    ):
+                        self.camera_controls_status_changed.emit(
+                            f"Camera is streaming at {actual_width}x"
+                            f"{actual_height}; selected resolution is "
+                            f"{requested_width}x{requested_height}."
+                        )
 
                 if self.camera_capture is not None:
                     self.camera_capture.release()
                 self.camera_capture = capture
                 self.camera_source = source
                 self.camera_enabled = True
-                self.camera_timer.start(30)
+                self.camera_timer.start(
+                    self._camera_timer_interval_ms(
+                        self.camera_stream_overrides.get(
+                            cv2.CAP_PROP_FPS,
+                            30,
+                        )
+                    )
+                )
                 self.camera_frame.setText("")
                 self.update_camera_status_indicator()
                 self.system_log_received.emit("Camera stream started.")
@@ -688,6 +779,112 @@ class Dashboard(QWidget):
         self.update_camera_status(empty_message)
         self.update_camera_status_indicator()
         self.system_log_received.emit("Camera stream could not be started.")
+
+    def set_camera_control(self, property_id, value):
+        if property_id not in self.camera_control_values:
+            raise ValueError(f"Unsupported camera control property: {property_id}")
+        self.camera_control_values[property_id] = value
+        self.camera_control_overrides[property_id] = value
+        if not self.camera_enabled or self.camera_capture is None:
+            return None
+
+        unsupported_controls = apply_camera_controls(
+            self.camera_capture,
+            {property_id: value},
+        )
+        self._update_camera_controls_status(
+            unsupported_controls,
+            applied_message="Camera control updated.",
+        )
+        return not unsupported_controls
+
+    def set_camera_stream_setting(self, property_id, value):
+        return self.set_camera_stream_settings({property_id: value})
+
+    def set_camera_stream_settings(self, values):
+        invalid_properties = set(values) - set(CAMERA_STREAM_PROPERTY_NAMES)
+        if invalid_properties:
+            property_id = next(iter(invalid_properties))
+            raise ValueError(
+                f"Unsupported camera stream property: {property_id}"
+            )
+        self.camera_stream_overrides.update(values)
+        if self.camera_enabled and self.camera_capture is not None:
+            resolution_properties = {
+                cv2.CAP_PROP_FRAME_WIDTH,
+                cv2.CAP_PROP_FRAME_HEIGHT,
+            }
+            if resolution_properties.intersection(values):
+                frame_size = None
+                if self.last_frame is not None:
+                    frame_height, frame_width = self.last_frame.shape[:2]
+                    frame_size = (frame_width, frame_height)
+                else:
+                    getter = getattr(self.camera_capture, "get", None)
+                    if getter is not None:
+                        try:
+                            frame_width = round(
+                                getter(cv2.CAP_PROP_FRAME_WIDTH)
+                            )
+                            frame_height = round(
+                                getter(cv2.CAP_PROP_FRAME_HEIGHT)
+                            )
+                        except (cv2.error, OSError):
+                            frame_width = frame_height = 0
+                        if frame_width > 0 and frame_height > 0:
+                            frame_size = (frame_width, frame_height)
+
+                requested_width = values.get(
+                    cv2.CAP_PROP_FRAME_WIDTH,
+                    frame_size[0] if frame_size is not None else None,
+                )
+                requested_height = values.get(
+                    cv2.CAP_PROP_FRAME_HEIGHT,
+                    frame_size[1] if frame_size is not None else None,
+                )
+                if frame_size != (requested_width, requested_height):
+                    self.stop_camera()
+                    self.start_camera()
+                    return self.camera_enabled
+
+            unsupported_settings = apply_camera_stream_settings(
+                self.camera_capture,
+                values,
+            )
+            if cv2.CAP_PROP_FPS in values and not unsupported_settings:
+                self.camera_timer.setInterval(
+                    self._camera_timer_interval_ms(values[cv2.CAP_PROP_FPS])
+                )
+            self._update_camera_stream_status(unsupported_settings)
+            return not unsupported_settings
+
+        return None
+
+    @staticmethod
+    def _camera_timer_interval_ms(frame_rate):
+        return max(1, round(1000 / frame_rate))
+
+    def _update_camera_stream_status(self, unsupported_settings):
+        if unsupported_settings:
+            status = "Not supported by this camera: " + ", ".join(
+                unsupported_settings
+            )
+        else:
+            status = "Camera stream setting updated."
+        self.camera_controls_status_changed.emit(status)
+
+    def _update_camera_controls_status(
+        self,
+        unsupported_controls,
+        applied_message="Camera controls applied.",
+    ):
+        if unsupported_controls:
+            status = "Not supported by this camera: " + ", ".join(
+                unsupported_controls
+            )
+        else:
+            status = applied_message
+        self.camera_controls_status_changed.emit(status)
 
     def toggle_camera(self):
         if self.camera_enabled:
@@ -827,13 +1024,10 @@ class Dashboard(QWidget):
         box_size = self.camera_frame.size()
         scaled = pixmap.scaled(
             box_size,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        crop_x = max((scaled.width() - box_size.width()) // 2, 0)
-        crop_y = max((scaled.height() - box_size.height()) // 2, 0)
-        filled = scaled.copy(crop_x, crop_y, box_size.width(), box_size.height())
-        self.camera_frame.setPixmap(filled)
+        self.camera_frame.setPixmap(scaled)
         self.camera_frame.setText("")
 
     def update_camera_usage_button(self):

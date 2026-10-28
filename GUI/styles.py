@@ -531,6 +531,143 @@ QScrollArea#admin_page_scroll {
     border: none;
 }
 
+#camera_controls_panel {
+    background-color: white;
+    border: 1px solid #dce5df;
+    border-radius: 14px;
+}
+
+#camera_control_group {
+    background-color: #f8faf8;
+    border: 1px solid #e5ece7;
+    border-radius: 10px;
+}
+
+#camera_controls_panel QLabel {
+    color: #173f2a;
+}
+
+#camera_control_section_title {
+    color: #173f2a;
+    font-size: 15px;
+    font-weight: 700;
+    padding-bottom: 7px;
+    border-bottom: 1px solid #dce5df;
+}
+
+#camera_controls_panel QLabel[camera_control_value="true"] {
+    background-color: #edf4ef;
+    border: 1px solid #dce8df;
+    border-radius: 5px;
+    color: #24643e;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 6px;
+}
+
+#camera_controls_panel QPushButton {
+    background-color: #e8f0ea;
+    color: #173f2a;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 8px;
+    text-align: center;
+}
+
+#camera_controls_panel QPushButton:hover {
+    background-color: #dce9e1;
+}
+
+#camera_controls_panel QPushButton:checked {
+    background-color: #2e7d4f;
+    color: white;
+}
+
+#camera_controls_panel QPushButton:disabled {
+    background-color: #f0f2f1;
+    color: #68796f;
+}
+
+#camera_controls_panel QComboBox {
+    color: #173f2a;
+}
+
+#camera_controls_panel QComboBox:disabled {
+    background-color: #f0f2f1;
+    color: #68796f;
+}
+
+#camera_controls_status,
+#camera_control_hint {
+    color: #526158;
+    font-size: 11px;
+}
+
+#camera_restore_button {
+    background-color: #2e7d4f;
+    color: white;
+    font-weight: 700;
+    text-align: center;
+}
+
+#camera_restore_button:hover {
+    background-color: #24643e;
+}
+
+#camera_full_view_button {
+    background-color: #e8f0ea;
+    color: #173f2a;
+    font-weight: 600;
+    padding: 7px 12px;
+    text-align: center;
+}
+
+#camera_full_view_button:hover {
+    background-color: #dce9e1;
+}
+
+#camera_full_view_close_button {
+    background-color: #2e7d4f;
+    color: white;
+    font-weight: 700;
+    padding: 8px 14px;
+    text-align: center;
+}
+
+#camera_full_view_close_button:hover {
+    background-color: #24643e;
+}
+
+#camera_full_view_frame {
+    background-color: #101512;
+    color: white;
+}
+
+#camera_controls_panel QSlider::groove:horizontal {
+    background-color: #e4ebe6;
+    border: 1px solid #d4dfd7;
+    border-radius: 4px;
+    height: 8px;
+}
+
+#camera_controls_panel QSlider::sub-page:horizontal {
+    background-color: #4c9563;
+    border-radius: 4px;
+}
+
+#camera_controls_panel QSlider::add-page:horizontal {
+    background-color: #e4ebe6;
+    border-radius: 4px;
+}
+
+#camera_controls_panel QSlider::handle:horizontal {
+    background-color: #287044;
+    border: 2px solid white;
+    border-radius: 9px;
+    margin: -6px 0;
+    width: 18px;
+}
+
 #admin_sidebar {
     background-color: #173f2a;
 }
