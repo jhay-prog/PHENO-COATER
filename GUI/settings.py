@@ -30,6 +30,9 @@ class SettingsPage(QWidget):
             get_configured_ai_model_path(),
         )
         self.setup_ui()
+        self.arduino_port_input.currentIndexChanged.connect(
+            self._select_arduino_port
+        )
         self.port_refresh_timer = QTimer(self)
         self.port_refresh_timer.timeout.connect(self.refresh_live_settings)
         self.refresh_live_settings()
@@ -56,8 +59,10 @@ class SettingsPage(QWidget):
             ),
             None,
         )
-        selected_port = arduino_port or (
-            current_port if current_port in port_names else None
+        selected_port = (
+            current_port
+            if current_port in port_names
+            else arduino_port
         )
         if selected_port is None and port_names:
             selected_port = port_names[0]
@@ -71,8 +76,10 @@ class SettingsPage(QWidget):
             and existing_ports == port_names
             and current_port == selected_port
         ):
+            self._select_arduino_port()
             return
 
+        signals_were_blocked = self.arduino_port_input.blockSignals(True)
         self.arduino_port_input.clear()
         self.arduino_port_input.addItem("No serial ports detected", None)
         for port_name in port_names:
@@ -83,11 +90,22 @@ class SettingsPage(QWidget):
             else 0
         )
         self.arduino_port_input.setEnabled(bool(port_names))
+        self.arduino_port_input.blockSignals(signals_were_blocked)
+        self._select_arduino_port()
+
+    def _select_arduino_port(self):
+        select_port = getattr(
+            self.camera_controller,
+            "set_arduino_port",
+            None,
+        )
+        if select_port is not None:
+            select_port(self.arduino_port_input.currentData())
 
     def refresh_live_settings(self):
         self.refresh_serial_ports()
 
-        baud_rate = getattr(self.camera_controller, "arduino_baud_rate", 9600)
+        baud_rate = getattr(self.camera_controller, "arduino_baud_rate", 115200)
         arduino_serial = getattr(self.camera_controller, "arduino_serial", None)
         if arduino_serial is not None:
             baud_rate = arduino_serial.baudrate

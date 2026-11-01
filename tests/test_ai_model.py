@@ -180,3 +180,68 @@ class AiModelIntegrationTests(unittest.TestCase):
         self.assertEqual(dashboard.quality_value.text(), "UNDEFINED")
         dashboard.arduino_timer.stop()
         dashboard.close()
+
+    def test_dashboard_normalizes_ai_quality_category_names(self):
+        class FakeBox:
+            def __init__(self, class_id):
+                self.conf = [0.9]
+                self.cls = [class_id]
+
+        class FakeResult:
+            names = {
+                0: "moldy bean",
+                1: "slaty bean",
+                2: "GERMINATED BEANS",
+                3: "insect_damaged",
+                4: "black bean",
+                5: "flat_beans",
+                6: "foreign object (rocks, twigs, etc.)",
+            }
+
+            def __init__(self, class_id):
+                self.boxes = [FakeBox(class_id)]
+
+        expected_qualities = (
+            "MOLDY",
+            "SLATY",
+            "GERMINATED",
+            "INSECT-DAMAGED",
+            "BLACK",
+            "FLAT",
+            "FOREIGN-OBJECT",
+        )
+        with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
+            with patch.object(Dashboard, "update_arduino_status"):
+                dashboard = Dashboard()
+
+        for class_id, expected_quality in enumerate(expected_qualities):
+            with self.subTest(expected_quality=expected_quality):
+                self.assertEqual(
+                    dashboard.update_quality_from_ai_result(
+                        FakeResult(class_id)
+                    ),
+                    expected_quality,
+                )
+
+        dashboard.arduino_timer.stop()
+        dashboard.close()
+
+    def test_dashboard_maps_legacy_slanty_label_to_slaty(self):
+        class FakeBox:
+            conf = [0.9]
+            cls = [0]
+
+        class FakeResult:
+            names = {0: "slanty"}
+            boxes = [FakeBox()]
+
+        with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
+            with patch.object(Dashboard, "update_arduino_status"):
+                dashboard = Dashboard()
+
+        self.assertEqual(
+            dashboard.update_quality_from_ai_result(FakeResult()),
+            "SLATY",
+        )
+        dashboard.arduino_timer.stop()
+        dashboard.close()

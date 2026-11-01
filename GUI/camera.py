@@ -28,18 +28,9 @@ from .camera_controls import (
     apply_camera_controls,
     apply_camera_stream_settings,
 )
+from .quality import normalize_quality_category
 
 
-CLASS_NAMES = (
-    "GOOD",
-    "MOLDY",
-    "SLANTY",
-    "GERMINATED",
-    "INSECT-DAMAGED",
-    "BLACK",
-    "FLAT",
-    "DOUBLE",
-)
 CONFIDENCE_THRESHOLD = 0.50
 STABILITY_WINDOW = 5
 
@@ -233,9 +224,11 @@ class CameraPage(QWidget):
         self.flicker_selector.setObjectName("camera_antiflicker_selector")
         self.flicker_selector.addItems(("50Hz", "60Hz"))
         self.flicker_selector.setCurrentText("60Hz")
-        self.flicker_selector.setEnabled(False)
+        self.flicker_selector.currentTextChanged.connect(
+            self._set_flicker_frequency
+        )
         self.flicker_selector.setToolTip(
-            "This camera backend does not expose mains-frequency control."
+            "Choose the local mains frequency. The camera backend may not apply it."
         )
         flicker_row.addWidget(flicker_label)
         flicker_row.addStretch()
@@ -341,7 +334,7 @@ class CameraPage(QWidget):
 
         for label, value in [
             ("Camera FPS", "0.0"),
-            ("Current bean ID", "--"),
+            ("Current bean ID", "0"),
             ("Total beans detected", "0"),
         ]:
             row = QHBoxLayout()
@@ -565,6 +558,11 @@ class CameraPage(QWidget):
         self._set_camera_control(
             cv2.CAP_PROP_AUTO_WB,
             1 if automatic else 0,
+        )
+
+    def _set_flicker_frequency(self, frequency):
+        self._set_camera_controls_status(
+            f"{frequency} anti-flicker selected; this camera backend may not apply it."
         )
 
     def _set_camera_controls_status(self, status):
@@ -805,7 +803,9 @@ class CameraPage(QWidget):
             self.render_frame(self.last_frame)
 
     def set_final_result(self, result):
-        self.final_result = result if result in CLASS_NAMES else "NO DETECTION"
+        self.final_result = (
+            normalize_quality_category(result) or "NO DETECTION"
+        )
         self.camera_result_label.setText(f"CAMERA RESULT: {self.final_result}")
         self.final_result_changed.emit(self.final_result)
 
@@ -819,9 +819,14 @@ class CameraPage(QWidget):
             if confidence < CONFIDENCE_THRESHOLD:
                 continue
             class_id = int(box.cls[0])
-            raw_name = names.get(class_id, str(class_id)) if isinstance(names, dict) else names[class_id]
-            normalized = str(raw_name).strip().upper().replace("_", "-")
-            if normalized in CLASS_NAMES:
+            if isinstance(names, dict):
+                raw_name = names.get(class_id, str(class_id))
+            elif 0 <= class_id < len(names):
+                raw_name = names[class_id]
+            else:
+                continue
+            normalized = normalize_quality_category(raw_name)
+            if normalized is not None:
                 candidates.append((confidence, normalized, box))
         return max(candidates, key=lambda item: item[0]) if candidates else None
 
@@ -922,8 +927,10 @@ class CameraPage(QWidget):
         )
         if current_seed_value is not None:
             bean_id = current_seed_value.text()
+            if not bean_id.strip("0"):
+                bean_id = "0"
         else:
-            bean_id = str(self.current_bean_id) if self.current_bean_id else "--"
+            bean_id = str(self.current_bean_id)
         self.bean_id_label.setText(bean_id)
         self.bean_count_label.setText(str(bean_count))
 

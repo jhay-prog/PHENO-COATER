@@ -42,6 +42,8 @@ class FakeDashboard(QWidget):
     camera_status_changed = Signal(str)
     current_weight_changed = Signal(object)
     arduino_status_changed = Signal(str)
+    arduino_connection_changed = Signal(bool)
+    ir_sensor_status_changed = Signal(bool)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     bean_data_updated = Signal(object)
@@ -59,11 +61,13 @@ class FakeDashboard(QWidget):
         self.camera_capture = None
         self.camera_connected = False
         self.arduino_connected = False
+        self.ir_sensor_connected = False
         self.arduino_status_message = "Arduino not detected."
         self.current_weight_kg = None
         self.total_bean_count = 0
         self.arduino_serial = None
         self.arduino_baud_rate = 115200
+        self.selected_arduino_port = None
         self.camera_source = 0
         self.nir_scan_delay_ms = 0
         self.nir_detected = False
@@ -117,6 +121,9 @@ class FakeDashboard(QWidget):
     @staticmethod
     def is_arduino_port(port):
         return Dashboard.is_arduino_port(port)
+
+    def set_arduino_port(self, port):
+        self.selected_arduino_port = port
 
     def set_nir_scanning(self, enabled):
         self.commands.append(("scan", enabled))
@@ -194,19 +201,72 @@ class HardwareCompatibilityTests(unittest.TestCase):
 
     def test_arduino_port_detection_uses_existing_usb_serial_heuristic(self):
         arduino = SimpleNamespace(
+            device="COM3",
             description="USB Serial Device",
             manufacturer="Arduino",
             product="",
             hwid="USB VID:PID",
         )
+        generic = SimpleNamespace(
+            device="COM4",
+            description="USB Serial Device",
+            manufacturer="",
+            product="",
+            hwid="",
+        )
         unrelated = SimpleNamespace(
+            device="COM8",
             description="Bluetooth Adapter",
             manufacturer="",
             product="",
             hwid="",
         )
         self.assertTrue(Dashboard.is_arduino_port(arduino))
+        self.assertTrue(Dashboard.is_arduino_port(generic))
         self.assertFalse(Dashboard.is_arduino_port(unrelated))
+
+    def test_arduino_is_not_connected_when_serial_port_cannot_be_opened(self):
+        dashboard = Dashboard()
+        arduino = SimpleNamespace(
+            device="COM-test",
+            description="Arduino Mega 2560",
+            manufacturer="",
+            product="",
+            hwid="",
+        )
+
+        with patch("GUI.dashboard.list_ports.comports", return_value=[arduino]):
+            with patch(
+                "GUI.dashboard.serial.Serial",
+                side_effect=OSError("port is already open"),
+            ):
+                dashboard.update_arduino_status()
+
+        self.assertFalse(dashboard.arduino_connected)
+        self.assertIsNone(dashboard.arduino_serial)
+
+    def test_selected_arduino_port_is_used_instead_of_first_detected_port(self):
+        dashboard = Dashboard()
+        dashboard.selected_arduino_port = "COM4"
+        ports = [
+            SimpleNamespace(device="COM3", description="Arduino Mega"),
+            SimpleNamespace(device="COM4", description="USB Serial Device"),
+        ]
+        mock_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=0,
+            close=lambda: None,
+        )
+
+        with patch("GUI.dashboard.list_ports.comports", return_value=ports):
+            with patch(
+                "GUI.dashboard.serial.Serial",
+                return_value=mock_serial,
+            ) as serial_factory:
+                dashboard.update_arduino_status()
+
+        serial_factory.assert_called_once_with("COM4", 115200, timeout=0.05)
+        self.assertEqual(dashboard.arduino_port, "COM4")
 
     def test_dual_load_cell_readings_are_summed_and_converted_to_kilograms(self):
         self.assertEqual(
@@ -236,15 +296,25 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_ir_bean_count_messages_update_dashboard_total(self):
         dashboard = Dashboard()
         self.assertEqual(dashboard.total_beans_value.text(), "0")
-
-        dashboard.set_ir_sample_active(True)
-        serial_data = b"BEAN_COUNT: 1\nBEAN_COUNT: 2\nBEAN_COUNT: invalid\n"
+        commands = []
+        serial_data = b"PHENOCOATER_BEAN_COUNTER_READY\n"
         dashboard.arduino_serial = SimpleNamespace(
-            is_open=False,
-            in_waiting=len(serial_data),
-            read=lambda size: serial_data,
+            is_open=True,
+            in_waiting=0,
+            write=lambda command: commands.append(command),
         )
         dashboard.arduino_port = "COM-test"
+        dashboard.start_camera = lambda: None
+
+        dashboard.start_system()
+        self.assertNotIn(b"START_SAMPLE\n", commands)
+        dashboard.arduino_serial.in_waiting = len(serial_data)
+        dashboard.arduino_serial.read = lambda size: serial_data
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertIn(b"START_SAMPLE\n", commands)
+        count_data = b"BEAN_COUNT: 1\nObject Count: 2\nBEAN_COUNT: invalid\n"
+        dashboard.arduino_serial.in_waiting = len(count_data)
+        dashboard.arduino_serial.read = lambda size: count_data
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
 
         self.assertEqual(dashboard.total_bean_count, 2)
@@ -263,6 +333,301 @@ class HardwareCompatibilityTests(unittest.TestCase):
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
         self.assertEqual(dashboard.total_beans_value.text(), "2")
 
+    def test_ir_detection_event_updates_count_before_arduino_count_line(self):
+        dashboard = Dashboard()
+        dashboard.set_ir_sample_active(True)
+        serial_data = b"IR_SENSOR_DETECTED\nBEAN_COUNT: 1\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(serial_data),
+            read=lambda size: serial_data,
+        )
+        dashboard.arduino_port = "COM-test"
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_bean_count, 1)
+        self.assertEqual(dashboard.total_beans_value.text(), "1")
+        self.assertEqual(
+            dashboard.current_seed_value.text(),
+            f"{date.today():%Y%m%d}0001",
+        )
+
+    def test_ir_detection_event_updates_count_without_count_line(self):
+        dashboard = Dashboard()
+        dashboard.set_ir_sample_active(True)
+        detection = b"IR_SENSOR_DETECTED\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(detection),
+            read=lambda size: detection,
+        )
+        dashboard.arduino_port = "COM-test"
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_bean_count, 1)
+        self.assertEqual(dashboard.total_beans_value.text(), "1")
+
+    def test_ir_detection_updates_dashboard_after_sample_start_ack(self):
+        dashboard = Dashboard()
+        commands = []
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=0,
+            write=lambda command: commands.append(command),
+        )
+        dashboard.arduino_port = "COM-test"
+        dashboard.start_camera = lambda: None
+        dashboard.start_system()
+
+        ready = b"PHENOCOATER_BEAN_COUNTER_READY\n"
+        dashboard.arduino_serial.in_waiting = len(ready)
+        dashboard.arduino_serial.read = lambda size: ready
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertIn(b"START_SAMPLE\n", commands)
+
+        detection = (
+            b"SAMPLE_STARTED\n"
+            b"IR_SENSOR_DETECTED\n"
+            b"BEAN_COUNT: 1\n"
+        )
+        dashboard.arduino_serial.in_waiting = len(detection)
+        dashboard.arduino_serial.read = lambda size: detection
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_beans_value.text(), "1")
+        self.assertEqual(dashboard.total_bean_count, 1)
+
+    def test_legacy_object_count_messages_update_total_and_seed_id(self):
+        dashboard = Dashboard()
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(b"Object Count: 1\n"),
+            read=lambda size: b"Object Count: 1\n",
+        )
+        dashboard.arduino_port = "COM-test"
+        dashboard.set_ir_sample_active(True)
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_bean_count, 1)
+        self.assertEqual(dashboard.total_beans_value.text(), "1")
+        self.assertEqual(
+            dashboard.current_seed_value.text(),
+            f"{date.today():%Y%m%d}0001",
+        )
+
+    def test_ir_sensor_is_not_inferred_from_firmware_ready_message(self):
+        dashboard = Dashboard()
+        ready_message = b"PHENOCOATER_BEAN_COUNTER_READY\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(ready_message),
+            read=lambda size: ready_message,
+            close=lambda: None,
+        )
+        dashboard.arduino_port = "COM-test"
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+        detection_message = b"IR_SENSOR_DETECTED\n"
+        dashboard.arduino_serial.in_waiting = len(detection_message)
+        dashboard.arduino_serial.read = lambda size: detection_message
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+        dashboard.close_arduino_serial()
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+    def test_ir_object_count_output_marks_sensor_connected_only_after_detection(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        response = b"Object Count: 0\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(response),
+            read=lambda size: response,
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+        response = b"Object Count: 1\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.arduino_serial.read = lambda size: response
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+        response = b"Object Count: 0\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.arduino_serial.read = lambda size: response
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+    def test_ir_power_status_updates_and_overrides_latched_detection(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        connected_status = b"IR_SENSOR_STATUS:CONNECTED\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(connected_status),
+            read=lambda size: connected_status,
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+        disconnected_status = b"IR_SENSOR_STATUS:DISCONNECTED\n"
+        dashboard.arduino_serial.in_waiting = len(disconnected_status)
+        dashboard.arduino_serial.read = lambda size: disconnected_status
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+        object_count = b"Object Count: 2\n"
+        dashboard.arduino_serial.in_waiting = len(object_count)
+        dashboard.arduino_serial.read = lambda size: object_count
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+    def test_ir_disconnect_status_resets_latched_state(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=0,
+            read=lambda size: b"",
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        dashboard._set_ir_sensor_connected(True)
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+        disconnected = b"IR_SENSOR_STATUS:DISCONNECTED\n"
+        dashboard.arduino_serial.in_waiting = len(disconnected)
+        dashboard.arduino_serial.read = lambda size: disconnected
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.ir_sensor_connected)
+
+        reconnected = b"IR_SENSOR_STATUS:CONNECTED\n"
+        dashboard.arduino_serial.in_waiting = len(reconnected)
+        dashboard.arduino_serial.read = lambda size: reconnected
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.ir_sensor_connected)
+
+    def test_arduino_firmware_baud_matches_dashboard_primary_baud(self):
+        firmware_path = (
+            Path(__file__).parents[1]
+            / "NIR"
+            / "as7265x"
+            / "as7265x.ino"
+        )
+        firmware = firmware_path.read_text(encoding="utf-8")
+
+        self.assertIn("Serial.begin(115200);", firmware)
+        self.assertEqual(Dashboard().arduino_primary_baud_rate, 115200)
+
+    def test_arduino_protocol_timeout_keeps_115200_and_reports_error(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_connection_started_at = 0.0
+        dashboard.arduino_baud_rate = 115200
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            close=lambda: None,
+        )
+        messages = []
+        dashboard.system_log_received.connect(messages.append)
+
+        with patch("GUI.dashboard.time.monotonic", return_value=6.0):
+            dashboard._check_arduino_protocol_timeout()
+
+        self.assertEqual(dashboard.arduino_baud_rate, 115200)
+        self.assertIn("No Arduino response at 115200 baud.", messages[0])
+        self.assertTrue(dashboard.arduino_protocol_timeout_reported)
+
+    def test_arduino_protocol_timeout_does_not_report_before_timeout(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_connection_started_at = 0.0
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            close=lambda: None,
+        )
+
+        with patch("GUI.dashboard.time.monotonic", return_value=1.5):
+            dashboard._check_arduino_protocol_timeout()
+
+        self.assertFalse(dashboard.arduino_protocol_timeout_reported)
+        self.assertEqual(dashboard.arduino_baud_rate, 115200)
+
+    def test_late_arduino_ready_message_clears_protocol_timeout(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_protocol_timeout_reported = True
+        ready = b"PHENOCOATER_BEAN_COUNTER_READY\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(ready),
+            read=lambda size: ready,
+            write=lambda command: len(command),
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertFalse(dashboard.arduino_protocol_timeout_reported)
+        self.assertEqual(dashboard.arduino_baud_rate, 115200)
+        self.assertIn("ready", dashboard.arduino_status_message.lower())
+
+    def test_ir_sample_start_retries_until_firmware_acknowledges(self):
+        dashboard = Dashboard()
+        dashboard.ir_sample_requested = True
+        dashboard.arduino_initialization_complete = True
+        dashboard.ir_sample_command_sent = True
+        dashboard.ir_sample_last_command_at = 10.0
+        commands = []
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            write=lambda command: commands.append(command),
+        )
+
+        with patch("GUI.dashboard.time.monotonic", return_value=11.1):
+            dashboard._retry_ir_sample_start()
+
+        self.assertEqual(commands, [b"START_SAMPLE\n"])
+
+        dashboard.ir_sample_acknowledged = True
+        dashboard.ir_sample_last_command_at = 10.0
+        with patch("GUI.dashboard.time.monotonic", return_value=12.2):
+            dashboard._retry_ir_sample_start()
+
+        self.assertEqual(commands, [b"START_SAMPLE\n"])
+
+    def test_nir_status_query_reports_connected_and_disconnected_states(self):
+        dashboard = Dashboard()
+        dashboard.arduino_port = "COM-test"
+        status_data = b"NIR_STATUS:CONNECTED\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(status_data),
+            read=lambda size: status_data,
+            close=lambda: None,
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        dashboard.update_nir_status()
+        self.assertTrue(dashboard.nir_connected)
+
+        status_data = b"NIR_STATUS:NOT_CONNECTED\n"
+        dashboard.arduino_serial.in_waiting = len(status_data)
+        dashboard.arduino_serial.read = lambda size: status_data
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        dashboard.update_nir_status()
+        self.assertFalse(dashboard.nir_connected)
+
     def test_unsolicited_arduino_counts_are_ignored_outside_a_batch(self):
         dashboard = Dashboard()
         self.assertFalse(dashboard.update_total_bean_count("BEAN_COUNT: 4"))
@@ -275,17 +640,26 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_arduino_connection_does_not_start_ir_sample_automatically(self):
         dashboard = Dashboard()
         commands = []
-        dashboard.write_arduino_command = commands.append
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            write=lambda command: commands.append(command),
+        )
 
         dashboard.initialize_nir_scanner()
 
-        self.assertNotIn("START_SAMPLE\n", commands)
+        self.assertNotIn(b"START_SAMPLE\n", commands)
+        self.assertEqual(commands, [])
+
+        dashboard.arduino_initialization_complete = True
+        dashboard.initialize_nir_scanner()
+        self.assertIn(b"N?\n", commands)
 
     def test_start_and_stop_system_control_ir_sample(self):
         dashboard = Dashboard()
         commands = []
         dashboard.write_arduino_command = commands.append
         dashboard.arduino_serial = SimpleNamespace(is_open=True)
+        dashboard.arduino_initialization_complete = True
         dashboard.start_camera = lambda: None
         dashboard.stop_camera = lambda: None
         dashboard.set_ir_sample_active(True)
@@ -446,6 +820,29 @@ class HardwareCompatibilityTests(unittest.TestCase):
         dashboard.set_camera_usage_enabled(False)
         dashboard.start_camera()
         self.assertEqual(dashboard.camera_start_count, 0)
+        settings.port_refresh_timer.stop()
+        settings.close()
+
+    def test_settings_displays_115200_baud_without_connected_controller(self):
+        settings = SettingsPage()
+        self.assertEqual(settings.baud_rate_input.text(), "115200")
+        settings.port_refresh_timer.stop()
+        settings.close()
+
+    def test_settings_arduino_port_selection_updates_dashboard(self):
+        dashboard = FakeDashboard()
+        ports = [
+            SimpleNamespace(device="COM3", description="Arduino Mega"),
+            SimpleNamespace(device="COM4", description="USB Serial Device"),
+        ]
+        with patch("GUI.settings.list_ports.comports", return_value=ports):
+            settings = SettingsPage(dashboard)
+
+        self.assertEqual(dashboard.selected_arduino_port, "COM3")
+        settings.arduino_port_input.setCurrentIndex(
+            settings.arduino_port_input.findData("COM4")
+        )
+        self.assertEqual(dashboard.selected_arduino_port, "COM4")
         settings.port_refresh_timer.stop()
         settings.close()
 
@@ -865,6 +1262,23 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.data_table.item(0, 1).text(), "--")
         page.deleteLater()
 
+    def test_quality_counts_include_foreign_objects_and_germinated_beans_as_defects(self):
+        records = [
+            {"quality": "FOREIGN-OBJECT"},
+            {"quality": "GERMINATED"},
+            {"quality": "SLATY"},
+        ]
+
+        self.assertEqual(
+            BeanDataSheetPage._quality_counts(records),
+            {
+                "GOOD": 0,
+                "MOLDY": 0,
+                "SLATY": 1,
+                "DEFECTIVE": 2,
+            },
+        )
+
     def test_admin_panel_reuses_dashboard_and_blocks_commands_after_logout(self):
         session = AdminSession()
         session.grant_admin()
@@ -895,22 +1309,17 @@ class HardwareCompatibilityTests(unittest.TestCase):
             overview.status_values["Load Cell"].text(),
             "NOT CONNECTED",
         )
-        self.assertEqual(
-            overview.status_values["Infrared Sensor"].text(),
-            "NOT CONNECTED",
-        )
+        self.assertNotIn("Infrared Sensor", overview.status_values)
         dashboard.arduino_connected = True
         overview.refresh_status()
-        self.assertEqual(
-            overview.status_values["Infrared Sensor"].text(),
-            "CONNECTED",
-        )
+        dashboard.ir_sensor_connected = True
+        dashboard.ir_sensor_status_changed.emit(True)
+        dashboard.ir_sensor_connected = False
+        dashboard.ir_sensor_status_changed.emit(False)
+        dashboard.ir_sensor_connected = True
+        overview.refresh_status()
         dashboard.ir_batch_active = True
         overview.refresh_status()
-        self.assertEqual(
-            overview.status_values["Infrared Sensor"].text(),
-            "COUNTING",
-        )
         dashboard.ir_batch_active = False
         dashboard.current_weight_kg = 1.25
         overview.refresh_status()
@@ -1198,6 +1607,17 @@ class HardwareCompatibilityTests(unittest.TestCase):
             self.assertNotIn("QCheckBox#admin_show_password_checkbox::indicator", APP_STYLE)
             self.assertNotIn("QCheckBox#create_admin_show_password_checkbox::indicator", APP_STYLE)
             dialog.close()
+
+    def test_system_status_tracks_arduino_not_camera(self):
+        with patch("GUI.main_window.Dashboard", FakeDashboard):
+            window = MainWindow()
+
+        self.assertEqual(window.status_text.text(), "SYSTEM NOT CONNECTED")
+        window.dashboard_page.arduino_connected = True
+        window.dashboard_page.arduino_connection_changed.emit(True)
+        self.assertEqual(window.status_text.text(), "SYSTEM CONNECTED")
+        window.dashboard_page.camera_status_changed.emit("NOT CONNECTED")
+        self.assertEqual(window.status_text.text(), "SYSTEM CONNECTED")
 
     def test_normal_window_starts_on_dashboard_and_denies_admin_routes(self):
         with patch("GUI.main_window.Dashboard", FakeDashboard):

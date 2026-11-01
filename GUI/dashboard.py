@@ -1,6 +1,7 @@
 # dashboard.py
 
 import re
+import time
 from datetime import date
 from math import isfinite
 
@@ -13,6 +14,7 @@ from .camera_controls import (
     apply_camera_controls,
     apply_camera_stream_settings,
 )
+from .quality import normalize_quality_category
 
 try:
     import serial
@@ -41,16 +43,6 @@ from PySide6.QtMultimedia import QMediaDevices
 from .animated_button import AnimatedButton
 
 
-AI_CLASS_NAMES = (
-    "GOOD",
-    "MOLDY",
-    "SLANTY",
-    "GERMINATED",
-    "INSECT-DAMAGED",
-    "BLACK",
-    "FLAT",
-    "DOUBLE",
-)
 AI_CONFIDENCE_THRESHOLD = 0.5
 
 
@@ -89,6 +81,8 @@ class Dashboard(QWidget):
     camera_controls_status_changed = Signal(str)
     current_weight_changed = Signal(object)
     arduino_status_changed = Signal(str)
+    arduino_connection_changed = Signal(bool)
+    ir_sensor_status_changed = Signal(bool)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
@@ -96,6 +90,8 @@ class Dashboard(QWidget):
     bean_data_updated = Signal(object)
     EMEET_CAMERA_INDEX = 0
     GRAMS_PER_KILOGRAM = 1000.0
+    ARDUINO_PROTOCOL_TIMEOUT_SECONDS = 5.0
+    IR_SAMPLE_START_RETRY_SECONDS = 1.0
 
     def __init__(self):
         super().__init__()
@@ -133,15 +129,35 @@ class Dashboard(QWidget):
         )
         self.arduino_serial = None
         self.arduino_port = None
+        self.selected_arduino_port = None
+        self.arduino_primary_baud_rate = 115200
         self.camera_connected = False
         self.arduino_connected = False
+        self.ir_sensor_connected = False
+        self.ir_power_status_reported = False
+        self.arduino_baud_rate = self.arduino_primary_baud_rate
+        self.arduino_protocol_seen = False
+        self.arduino_initialization_complete = False
+        self.arduino_connection_started_at = 0.0
+        self.arduino_protocol_timeout_reported = False
         self.arduino_status_message = ""
         self.nir_connected = False
         self.serial_buffer = ""
         self.current_weight_kg = None
+        self.good_weight_grams = None
+        self.not_good_weight_grams = None
         self.total_bean_count = 0
+        self.good_bean_count = 0
+        self.not_good_bean_count = 0
+        self.bean_rotation_active = False
+        self.awaiting_bean_classification = False
+        self.best_rotation_quality = None
+        self.best_rotation_confidence = -1.0
+        self.last_quality_confidence = 0.0
         self.ir_sample_requested = False
         self.ir_sample_command_sent = False
+        self.ir_sample_acknowledged = False
+        self.ir_sample_last_command_at = 0.0
         self.ir_batch_active = False
         self.ir_final_count_expected = False
         self.nir_detected = False
@@ -150,6 +166,11 @@ class Dashboard(QWidget):
         self.servo_maximum_angles = {1: 160, 2: 160}
         self.servo_sweep_speeds = {1: 45, 2: 45}
         self.servo_sweeping = {1: False, 2: False}
+        self.bean_classification_timer = QTimer(self)
+        self.bean_classification_timer.setSingleShot(True)
+        self.bean_classification_timer.timeout.connect(
+            self._reject_unclassified_bean
+        )
 
         self.camera_modes = {
             "Camera": {
@@ -188,22 +209,76 @@ class Dashboard(QWidget):
             )
             return
         ports = list(list_ports.comports()) if list_ports is not None else []
-        arduino_port = next((port for port in ports if self.is_arduino_port(port)), None)
-        arduino_connected = arduino_port is not None
-        if arduino_connected:
+        if self.selected_arduino_port is not None:
+            arduino_port = next(
+                (
+                    port
+                    for port in ports
+                    if port.device == self.selected_arduino_port
+                ),
+                None,
+            )
+        else:
+            arduino_port = next(
+                (port for port in ports if self.is_arduino_port(port)),
+                None,
+            )
+        if arduino_port is not None:
             self.read_arduino_messages(arduino_port)
         else:
             was_connected = self.arduino_serial is not None
             self.close_arduino_serial()
             self.nir_detected = False
-            self._set_arduino_status(
-                "Arduino not detected. Check the USB cable and serial port."
+            status = (
+                f"Selected Arduino port {self.selected_arduino_port} is not "
+                "available."
+                if self.selected_arduino_port is not None
+                else "Arduino not detected. Check the USB cable and serial port."
             )
+            self._set_arduino_status(status)
             if was_connected:
                 self.system_log_received.emit("Arduino serial connection lost.")
 
-        self.arduino_connected = arduino_connected
+        serial_connected = (
+            self.arduino_serial is not None
+            and self.arduino_serial.is_open
+        )
+        connection_changed = self.arduino_connected != serial_connected
+        self.arduino_connected = serial_connected
+        if connection_changed:
+            self.arduino_connection_changed.emit(serial_connected)
+        self._check_arduino_protocol_timeout()
+        self._retry_ir_sample_start()
         self.update_nir_status()
+
+    def set_arduino_port(self, port):
+        selected_port = str(port) if port else None
+        if selected_port == self.selected_arduino_port:
+            return
+
+        self.selected_arduino_port = selected_port
+        if self.arduino_port != selected_port:
+            self.close_arduino_serial()
+        self.update_arduino_status()
+
+    def _check_arduino_protocol_timeout(self):
+        if (
+            self.arduino_serial is None
+            or not self.arduino_serial.is_open
+            or self.arduino_protocol_seen
+            or self.arduino_protocol_timeout_reported
+            or time.monotonic() - self.arduino_connection_started_at
+            < self.ARDUINO_PROTOCOL_TIMEOUT_SECONDS
+        ):
+            return
+
+        self.arduino_protocol_timeout_reported = True
+        message = (
+            "No Arduino response at 115200 baud. Check the selected serial port "
+            "and confirm the uploaded sketch uses Serial.begin(115200)."
+        )
+        self.system_log_received.emit(message)
+        self._set_arduino_status(message)
 
     def _set_arduino_status(self, message):
         if self.arduino_status_message != message:
@@ -219,12 +294,17 @@ class Dashboard(QWidget):
         if self.arduino_serial is None or self.arduino_port != port.device:
             self.close_arduino_serial()
             try:
+                self.arduino_baud_rate = self.arduino_primary_baud_rate
                 self.arduino_serial = serial.Serial(
                     port.device,
                     self.arduino_baud_rate,
                     timeout=0.05,
                 )
                 self.arduino_port = port.device
+                self.arduino_protocol_seen = False
+                self.arduino_initialization_complete = False
+                self.arduino_protocol_timeout_reported = False
+                self.arduino_connection_started_at = time.monotonic()
                 self.ir_sample_command_sent = False
                 self.system_log_received.emit(
                     f"Arduino serial connected on {port.device}."
@@ -236,12 +316,11 @@ class Dashboard(QWidget):
                 QTimer.singleShot(1500, self.initialize_nir_scanner)
             except (serial.SerialException, OSError) as exc:
                 self.arduino_serial = None
-                self.arduino_port = None
                 self.system_log_received.emit(
                     f"Arduino serial connection failed on {port.device}: {exc}"
                 )
                 self._set_arduino_status(
-                    f"Could not open {port.device}: {exc}"
+                    f"Could not open {port.device}: {exc}. Port may be busy in another app."
                 )
                 return
 
@@ -256,13 +335,72 @@ class Dashboard(QWidget):
             for line in lines:
                 message = line.strip()
                 if message:
+                    if (
+                        message == "PHENOCOATER_BEAN_COUNTER_READY"
+                        or message in ("SAMPLE_STARTED", "SAMPLE_COMPLETE")
+                        or message.startswith("IR_SENSOR_STATUS:")
+                        or self.is_nir_message(message)
+                        or self.parse_bean_count(message) is not None
+                        or self.parse_object_count(message) is not None
+                    ):
+                        self.arduino_protocol_seen = True
+                    if message == "PHENOCOATER_BEAN_COUNTER_READY":
+                        self.arduino_protocol_timeout_reported = False
+                        self.arduino_initialization_complete = True
+                        self._set_arduino_status(
+                            f"Arduino protocol ready at "
+                            f"{self.arduino_baud_rate} baud."
+                        )
+                        self.initialize_nir_scanner()
+                    elif message == "SAMPLE_STARTED":
+                        self.ir_sample_acknowledged = True
+                        self.ir_sample_command_sent = True
+                    if message == "BEAN_ROTATION_STARTED":
+                        self.bean_rotation_active = True
+                        self.awaiting_bean_classification = False
+                        self.best_rotation_quality = None
+                        self.best_rotation_confidence = -1.0
+                    elif message == "BEAN_READY_FOR_CLASSIFICATION":
+                        self.bean_rotation_active = False
+                        self.awaiting_bean_classification = True
+                        self.bean_classification_timer.start(1500)
+                        if self.best_rotation_quality is not None:
+                            self._send_bean_sort_command(
+                                self.best_rotation_quality
+                            )
+                    if message.startswith("IR_SENSOR_STATUS:"):
+                        status = message.partition(":")[2].strip().upper()
+                        if status in ("DISCONNECTED", "OFF", "NOT_CONNECTED"):
+                            self.ir_power_status_reported = False
+                            self._set_ir_sensor_connected(False)
+                        elif status in ("CONNECTED", "ACTIVE", "ON"):
+                            self.ir_power_status_reported = True
+                            self._set_ir_sensor_connected(True)
+                    elif message == "IR_SENSOR_DETECTED":
+                        self.ir_power_status_reported = True
+                        self._set_ir_sensor_connected(True)
+                        self.increment_total_bean_count()
+
+                    object_count = self.parse_object_count(message)
+                    if object_count is not None:
+                        self.ir_power_status_reported = object_count > 0
+                        self._set_ir_sensor_connected(object_count > 0)
                     self.update_total_bean_count(message)
                     self.nir_message_received.emit(message)
                     self.handle_servo_status(message)
-                    weight_kg = self.parse_load_cell_weight_kg(message)
-                    if weight_kg is not None:
+                    weights_grams = self.parse_load_cell_weights_grams(message)
+                    if weights_grams is not None:
+                        good_weight_grams, not_good_weight_grams = weights_grams
+                        weight_kg = (
+                            good_weight_grams + not_good_weight_grams
+                        ) / self.GRAMS_PER_KILOGRAM
                         self.current_weight_kg = weight_kg
-                        self.update_batch_weight_display(weight_kg)
+                        self.good_weight_grams = good_weight_grams
+                        self.not_good_weight_grams = not_good_weight_grams
+                        self.update_group_weight_display(
+                            good_weight_grams,
+                            not_good_weight_grams,
+                        )
                         self.current_weight_changed.emit(weight_kg)
                         self.emit_bean_data_update()
                         self._set_arduino_status(
@@ -289,7 +427,10 @@ class Dashboard(QWidget):
                         self._set_arduino_status(
                             f"Calibration required: {message}"
                         )
-                if self.is_nir_message(message):
+                if message.startswith("NIR_STATUS:"):
+                    status = message.partition(":")[2].strip().upper()
+                    self.nir_detected = status == "CONNECTED"
+                elif self.is_nir_message(message):
                     self.nir_detected = True
         except (serial.SerialException, OSError) as exc:
             self.system_log_received.emit(f"Arduino serial read failed: {exc}")
@@ -303,26 +444,38 @@ class Dashboard(QWidget):
     def set_ir_sample_active(self, enabled):
         self.ir_sample_requested = bool(enabled)
         if self.ir_sample_requested:
+            self.ir_sample_acknowledged = False
+            self.ir_sample_command_sent = False
             self.ir_batch_active = True
             self.ir_final_count_expected = False
             self.total_bean_count = 0
+            self.good_bean_count = 0
+            self.not_good_bean_count = 0
+            self.bean_rotation_active = False
+            self.awaiting_bean_classification = False
+            self.best_rotation_quality = None
+            self.best_rotation_confidence = -1.0
+            self.bean_classification_timer.stop()
             self.total_beans_value.setText("0")
+            self.update_quality_totals_display()
             self.update_current_seed_id(0)
             self.emit_bean_data_update()
         else:
+            self.ir_sample_acknowledged = False
             self.ir_final_count_expected = self.ir_batch_active
             self.ir_batch_active = False
-        if self.arduino_serial is None or not self.arduino_serial.is_open:
+        if (
+            self.arduino_serial is None
+            or not self.arduino_serial.is_open
+            or not self.arduino_initialization_complete
+        ):
             self.ir_sample_command_sent = False
             return
-        self.write_arduino_command(
-            "START_SAMPLE\n" if self.ir_sample_requested else "STOP_SAMPLE\n"
-        )
-        self.ir_sample_command_sent = (
-            self.ir_sample_requested
-            and self.arduino_serial is not None
-            and self.arduino_serial.is_open
-        )
+        command = "START_SAMPLE\n" if self.ir_sample_requested else "STOP_SAMPLE\n"
+        command_sent = self.write_arduino_command(command)
+        self.ir_sample_command_sent = self.ir_sample_requested and command_sent
+        if self.ir_sample_command_sent:
+            self.ir_sample_last_command_at = time.monotonic()
 
     def start_system(self):
         self.set_ir_sample_active(True)
@@ -330,6 +483,9 @@ class Dashboard(QWidget):
 
     def stop_system(self):
         self.set_ir_sample_active(False)
+        self.bean_classification_timer.stop()
+        self.bean_rotation_active = False
+        self.awaiting_bean_classification = False
         self.stop_camera()
 
     def set_nir_scan_delay(self, delay_ms):
@@ -337,18 +493,46 @@ class Dashboard(QWidget):
         self.send_nir_scan_delay()
 
     def initialize_nir_scanner(self):
-        if self.ir_sample_requested and not self.ir_sample_command_sent:
-            self.write_arduino_command("START_SAMPLE\n")
-            self.ir_sample_command_sent = (
-                self.arduino_serial is not None
-                and self.arduino_serial.is_open
-            )
+        if (
+            self.arduino_serial is None
+            or not self.arduino_serial.is_open
+            or not self.arduino_initialization_complete
+        ):
+            return
+        self.write_arduino_command("N?\n")
+        if self.ir_sample_requested and not self.ir_sample_acknowledged:
+            self._send_ir_sample_start()
         self.send_nir_scan_delay()
         self.send_nir_scan_command()
         for motor in (1, 2):
             self.send_servo_sweep_config(motor)
             if self.servo_sweeping[motor]:
                 self.write_arduino_command(f"W{motor},1\n")
+
+    def _send_ir_sample_start(self):
+        if (
+            not self.ir_sample_requested
+            or self.arduino_serial is None
+            or not self.arduino_serial.is_open
+        ):
+            return False
+        sent = self.write_arduino_command("START_SAMPLE\n")
+        self.ir_sample_command_sent = sent
+        if sent:
+            self.ir_sample_last_command_at = time.monotonic()
+        return sent
+
+    def _retry_ir_sample_start(self):
+        if (
+            not self.ir_sample_requested
+            or self.ir_sample_acknowledged
+            or not self.arduino_initialization_complete
+            or not self.ir_sample_command_sent
+            or time.monotonic() - self.ir_sample_last_command_at
+            < self.IR_SAMPLE_START_RETRY_SECONDS
+        ):
+            return
+        self._send_ir_sample_start()
 
     def continue_load_cell_calibration(self):
         if self.arduino_serial is None or not self.arduino_serial.is_open:
@@ -392,12 +576,14 @@ class Dashboard(QWidget):
 
     def write_arduino_command(self, command):
         if self.arduino_serial is None or not self.arduino_serial.is_open:
-            return
+            return False
         try:
             self.arduino_serial.write(command.encode("ascii"))
+            return True
         except (serial.SerialException, OSError) as exc:
             self.system_log_received.emit(f"Arduino serial write failed: {exc}")
             self.close_arduino_serial()
+            return False
 
     def handle_servo_status(self, message):
         fields = message.split(",")
@@ -415,6 +601,16 @@ class Dashboard(QWidget):
 
     @staticmethod
     def parse_load_cell_weight_kg(message):
+        readings = Dashboard.parse_load_cell_weights_grams(message)
+        if readings is None:
+            return None
+        combined_weight_grams = sum(readings)
+        if not isfinite(combined_weight_grams):
+            return None
+        return combined_weight_grams / Dashboard.GRAMS_PER_KILOGRAM
+
+    @staticmethod
+    def parse_load_cell_weights_grams(message):
         match = re.fullmatch(
             r"\s*Load\s+Cell\s+1\s*:\s*(-?(?:\d+(?:\.\d*)?|\.\d+))"
             r"\s*g\s*\|\s*Load\s+Cell\s+2\s*:\s*"
@@ -424,13 +620,15 @@ class Dashboard(QWidget):
         )
         if match is None:
             return None
-        weight1_grams, weight2_grams = (
+        good_weight_grams, not_good_weight_grams = (
             float(value) for value in match.groups()
         )
-        combined_weight_grams = weight1_grams + weight2_grams
-        if not isfinite(combined_weight_grams):
+        if not all(
+            isfinite(weight)
+            for weight in (good_weight_grams, not_good_weight_grams)
+        ):
             return None
-        return combined_weight_grams / Dashboard.GRAMS_PER_KILOGRAM
+        return good_weight_grams, not_good_weight_grams
 
     parse_load_cell_weight = parse_load_cell_weight_kg
 
@@ -465,22 +663,61 @@ class Dashboard(QWidget):
                 )
         self.arduino_serial = None
         self.arduino_port = None
+        self.arduino_baud_rate = self.arduino_primary_baud_rate
+        self.arduino_protocol_seen = False
+        self.arduino_connection_started_at = 0.0
+        self.arduino_protocol_timeout_reported = False
+        self.arduino_initialization_complete = False
         self.serial_buffer = ""
         self.ir_sample_command_sent = False
+        self.ir_sample_acknowledged = False
+        self.ir_power_status_reported = False
+        self._set_ir_sensor_connected(False)
         self._clear_current_weight()
+
+    def _set_ir_sensor_connected(self, connected):
+        connected = bool(connected)
+        if self.ir_sensor_connected == connected:
+            return
+        self.ir_sensor_connected = connected
+        self.ir_sensor_status_changed.emit(connected)
+
+    @staticmethod
+    def parse_object_count(message):
+        match = re.fullmatch(
+            r"\s*Object Count:\s*(\d+)\s*",
+            message,
+            re.IGNORECASE,
+        )
+        return int(match.group(1)) if match is not None else None
 
     def _clear_current_weight(self):
         if self.current_weight_kg is not None:
             self.current_weight_kg = None
-            self.update_batch_weight_display(None)
+            self.good_weight_grams = None
+            self.not_good_weight_grams = None
+            self.update_group_weight_display(None, None)
             self.current_weight_changed.emit(None)
             self.emit_bean_data_update()
+
+    def update_group_weight_display(
+        self,
+        good_weight_grams,
+        not_good_weight_grams,
+    ):
+        if good_weight_grams is None or not_good_weight_grams is None:
+            self.batch_weight_value.setText("0")
+            return
+        combined_weight_grams = good_weight_grams + not_good_weight_grams
+        self.batch_weight_value.setText(f"{combined_weight_grams:.2f}")
 
     def update_batch_weight_display(self, weight_kg):
         if weight_kg is None:
             self.batch_weight_value.setText("0")
             return
-        self.batch_weight_value.setText(f"{weight_kg * self.GRAMS_PER_KILOGRAM:.2f}")
+        self.batch_weight_value.setText(
+            f"{weight_kg * self.GRAMS_PER_KILOGRAM:.2f}"
+        )
 
     def update_current_seed_id(self, bean_number):
         if bean_number <= 0:
@@ -493,8 +730,9 @@ class Dashboard(QWidget):
     @staticmethod
     def parse_bean_count(message):
         match = re.fullmatch(
-            r"(?:BEAN_COUNT|FINAL_BEAN_COUNT):\s*(\d+)",
+            r"(?:BEAN_COUNT|FINAL_BEAN_COUNT|OBJECT COUNT):\s*(\d+)",
             message.strip(),
+            re.IGNORECASE,
         )
         return int(match.group(1)) if match is not None else None
 
@@ -506,13 +744,22 @@ class Dashboard(QWidget):
             if not self.ir_final_count_expected:
                 return False
             self.ir_final_count_expected = False
-        elif not self.ir_batch_active:
+        elif not (self.ir_batch_active or self.ir_sample_acknowledged):
             return False
+        self._display_total_bean_count(count)
+        return True
+
+    def increment_total_bean_count(self):
+        if not (self.ir_batch_active or self.ir_sample_acknowledged):
+            return False
+        self._display_total_bean_count(self.total_bean_count + 1)
+        return True
+
+    def _display_total_bean_count(self, count):
         self.total_bean_count = count
         self.total_beans_value.setText(str(count))
         self.update_current_seed_id(count)
         self.emit_bean_data_update()
-        return True
 
     def emit_bean_data_update(self):
         self.bean_data_updated.emit(
@@ -548,7 +795,13 @@ class Dashboard(QWidget):
     def is_arduino_port(port):
         port_details = " ".join(
             str(value or "")
-            for value in (port.description, port.manufacturer, port.product, port.hwid)
+            for value in (
+                getattr(port, "description", ""),
+                getattr(port, "manufacturer", ""),
+                getattr(port, "product", ""),
+                getattr(port, "hwid", ""),
+                getattr(port, "device", ""),
+            )
         ).lower()
         arduino_keywords = (
             "arduino",
@@ -562,7 +815,13 @@ class Dashboard(QWidget):
             "ttyacm",
             "ttyusb",
         )
-        return any(keyword in port_details for keyword in arduino_keywords)
+        if any(keyword in port_details for keyword in arduino_keywords):
+            return True
+
+        device_name = str(getattr(port, "device", "")).upper()
+        if device_name.startswith("COM") and "bluetooth" not in port_details:
+            return True
+        return False
 
     def update_responsive_layout(self):
         if not hasattr(self, "middle_layout") or not hasattr(
@@ -967,14 +1226,57 @@ class Dashboard(QWidget):
                     raw_name = names[class_id]
                 else:
                     continue
-                normalized = str(raw_name).strip().upper().replace("_", "-")
-                if normalized in AI_CLASS_NAMES:
+                normalized = normalize_quality_category(raw_name)
+                if normalized is not None:
                     candidates.append((confidence, normalized))
 
-        quality = max(candidates, default=(0.0, "UNDEFINED"))[1]
+        confidence, quality = max(
+            candidates,
+            default=(0.0, "UNDEFINED"),
+        )
+        self.last_quality_confidence = confidence
         self.quality_value.setText(quality)
+        self.update_quality_totals_display()
         self.emit_bean_data_update()
+        if self.bean_rotation_active and confidence > self.best_rotation_confidence:
+            self.best_rotation_quality = quality
+            self.best_rotation_confidence = confidence
+        if self.awaiting_bean_classification and quality != "UNDEFINED":
+            self._send_bean_sort_command(quality)
         return quality
+
+    def update_quality_totals_display(self):
+        self.quality_summary_value.setText("Classification")
+
+    def _send_bean_sort_command(self, quality):
+        if not self.awaiting_bean_classification:
+            return False
+        if self.arduino_serial is None or not self.arduino_serial.is_open:
+            self.system_log_received.emit(
+                "Cannot sort bean: Arduino serial connection is unavailable."
+            )
+            return False
+
+        is_good = quality == "GOOD"
+        command = "SORT_GOOD\n" if is_good else "SORT_NOT_GOOD\n"
+        if not self.write_arduino_command(command):
+            return False
+        self.bean_classification_timer.stop()
+        self.awaiting_bean_classification = False
+        if is_good:
+            self.good_bean_count += 1
+        else:
+            self.not_good_bean_count += 1
+        self.update_quality_totals_display()
+        return True
+
+    def _reject_unclassified_bean(self):
+        if not self.awaiting_bean_classification:
+            return
+        self.system_log_received.emit(
+            "No valid camera classification arrived; routing bean to not-good."
+        )
+        self._send_bean_sort_command("UNDEFINED")
 
     def set_ai_model_path(self, model_path, log_result=True):
         model_path = str(model_path or "").strip()
@@ -1148,6 +1450,11 @@ class Dashboard(QWidget):
         self.current_seed_value = self.cards[0].findChild(QLabel, "card_value")
         self.batch_weight_value = self.cards[1].findChild(QLabel, "card_value")
         self.quality_value = self.cards[3].findChild(QLabel, "card_value")
+        self.quality_summary_value = self.cards[3].findChild(
+            QLabel,
+            "card_unit",
+        )
+        self.update_quality_totals_display()
         self.total_beans_value = self.cards[-1].findChild(QLabel, "card_value")
         self.card_columns = 1
         self.reflow_cards(self.card_columns)

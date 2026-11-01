@@ -192,8 +192,6 @@ class NIRAnalysisPage(QWidget):
     def append_serial_line(self, line):
         if not line:
             return
-        if "nm:" in line and not self.scanning:
-            return
         if not self.received_serial_data:
             self.serial_output.clear()
             self.received_serial_data = True

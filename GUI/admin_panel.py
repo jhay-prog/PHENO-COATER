@@ -107,6 +107,7 @@ class SystemOverviewPage(QWidget):
         super().__init__()
         self.setObjectName("admin_system_overview_page")
         self.dashboard = dashboard
+        self.dashboard.ir_sensor_status_changed.connect(self.refresh_status)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)
@@ -117,6 +118,7 @@ class SystemOverviewPage(QWidget):
             "Live status from the application's existing hardware controller."
         )
         description.setObjectName("settings_description")
+        description.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(description)
 
@@ -136,7 +138,6 @@ class SystemOverviewPage(QWidget):
         for name in (
             "Camera",
             "Arduino",
-            "Infrared Sensor",
             "NIR Sensor",
             "Load Cell",
             "AI Model",
@@ -160,11 +161,10 @@ class SystemOverviewPage(QWidget):
         self.refresh_timer.start(500)
         self.refresh_status()
 
-    def refresh_status(self):
+    def refresh_status(self, *_args):
         states = {
             "Camera": self.dashboard.camera_connected,
             "Arduino": self.dashboard.arduino_connected,
-            "Infrared Sensor": self.dashboard.arduino_connected,
             "NIR Sensor": self.dashboard.nir_connected,
             "Load Cell": getattr(
                 self.dashboard,
@@ -177,12 +177,6 @@ class SystemOverviewPage(QWidget):
             value = self.status_values[name]
             if name == "AI Model":
                 status_text = "READY" if connected else "NOT READY"
-            elif name == "Infrared Sensor" and connected:
-                status_text = (
-                    "COUNTING"
-                    if getattr(self.dashboard, "ir_batch_active", False)
-                    else "CONNECTED"
-                )
             else:
                 status_text = "CONNECTED" if connected else "NOT CONNECTED"
             value.setText(status_text)

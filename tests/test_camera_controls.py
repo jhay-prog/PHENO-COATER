@@ -473,7 +473,7 @@ class CameraControlTests(unittest.TestCase):
             total_bean_count = 23
 
             def __init__(self):
-                self.current_seed_value = QLabel("202610280023")
+                self.current_seed_value = QLabel("0" * 12)
 
         controller = FakeController()
         page = CameraPage(camera_controller=controller)
@@ -482,6 +482,10 @@ class CameraControlTests(unittest.TestCase):
         page.update_camera_metrics()
 
         self.assertEqual(page.bean_count_label.text(), "23")
+        self.assertEqual(page.bean_id_label.text(), "0")
+
+        controller.current_seed_value.setText("202610280023")
+        page.update_camera_metrics()
         self.assertEqual(page.bean_id_label.text(), "202610280023")
 
     def test_focus_range_labels_are_aligned_to_slider_ends(self):
@@ -544,6 +548,11 @@ class CameraControlTests(unittest.TestCase):
         self.assertEqual(page.exposure_slider.value(), -5)
         self.assertEqual(page.gain_slider.value(), 0)
         self.assertEqual(page.flicker_selector.currentText(), "60Hz")
+        self.assertEqual(
+            [page.flicker_selector.itemText(index) for index in range(page.flicker_selector.count())],
+            ["50Hz", "60Hz"],
+        )
+        self.assertTrue(page.flicker_selector.isEnabled())
         self.assertEqual(page.white_balance_slider.value(), 5000)
         self.assertEqual(
             page.findChild(QLabel, "camera_exposure_slider_value").text(),
@@ -575,6 +584,8 @@ class CameraControlTests(unittest.TestCase):
         page.focus_manual_button.click()
         page.exposure_manual_button.click()
         page.white_balance_auto_button.click()
+        page.flicker_selector.setCurrentText("50Hz")
+        self.assertIn("50Hz anti-flicker selected", page.camera_controls_status.text())
 
         self.assertEqual(controller.values[cv2.CAP_PROP_BRIGHTNESS], 180)
         self.assertEqual(controller.values[cv2.CAP_PROP_FOCUS], 80)
@@ -595,7 +606,6 @@ class CameraControlTests(unittest.TestCase):
         page.white_balance_slider.setValue(6400)
         self.assertEqual(controller.values[cv2.CAP_PROP_WB_TEMPERATURE], 6400)
         self.assertTrue(page.white_balance_slider.isEnabled())
-        self.assertFalse(page.flicker_selector.isEnabled())
 
         page.restore_camera_controls()
         self.assertEqual(

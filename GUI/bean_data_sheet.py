@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from .pricing import PricingSettingsPage
+from .quality import QUALITY_CATEGORIES, normalize_quality_category
 
 
 class BeanDataSheetPage(QWidget):
@@ -297,7 +298,7 @@ class BeanDataSheetPage(QWidget):
                 record["quality"],
                 self._format_percentage(class_counts["GOOD"], 1),
                 self._format_percentage(class_counts["MOLDY"], 1),
-                self._format_percentage(class_counts["SLANTY"], 1),
+                self._format_percentage(class_counts["SLATY"], 1),
                 self._format_percentage(class_counts["DEFECTIVE"], 1),
             ))
         return rows
@@ -308,7 +309,7 @@ class BeanDataSheetPage(QWidget):
         for (batch_number, _), record in self.bean_records.items():
             counts = batch_counts.setdefault(
                 batch_number,
-                {"GOOD": 0, "MOLDY": 0, "SLANTY": 0, "DEFECTIVE": 0},
+                {"GOOD": 0, "MOLDY": 0, "SLATY": 0, "DEFECTIVE": 0},
             )
             quality_counts = self._quality_counts([record])
             for quality, count in quality_counts.items():
@@ -320,7 +321,7 @@ class BeanDataSheetPage(QWidget):
                 pns_result = PricingSettingsPage.calculate_pns_grade(
                     bean_count,
                     counts["MOLDY"] * 100 / bean_count,
-                    counts["SLANTY"] * 100 / bean_count,
+                    counts["SLATY"] * 100 / bean_count,
                     counts["DEFECTIVE"] * 100 / bean_count,
                 )
             rows.append(
@@ -331,7 +332,7 @@ class BeanDataSheetPage(QWidget):
                     bean_count,
                     counts["GOOD"],
                     counts["MOLDY"],
-                    counts["SLANTY"],
+                    counts["SLATY"],
                     counts["DEFECTIVE"],
                     pns_result["score"] if pns_result else "--",
                 )
@@ -352,23 +353,18 @@ class BeanDataSheetPage(QWidget):
         counts = {
             "GOOD": 0,
             "MOLDY": 0,
-            "SLANTY": 0,
+            "SLATY": 0,
             "DEFECTIVE": 0,
         }
         for record in records:
-            quality = record["quality"].upper()
+            quality = normalize_quality_category(record["quality"])
             if quality == "GOOD":
                 counts["GOOD"] += 1
             elif quality == "MOLDY":
                 counts["MOLDY"] += 1
-            elif quality == "SLANTY":
-                counts["SLANTY"] += 1
-            elif quality in {
-                "INSECT-DAMAGED",
-                "BLACK",
-                "FLAT",
-                "DOUBLE",
-            }:
+            elif quality == "SLATY":
+                counts["SLATY"] += 1
+            elif quality in QUALITY_CATEGORIES:
                 counts["DEFECTIVE"] += 1
         return counts
 

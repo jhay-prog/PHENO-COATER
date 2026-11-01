@@ -139,8 +139,10 @@ class MainWindow(QMainWindow):
         self.pages.setObjectName('pages')
 
         self.dashboard_page = Dashboard()
-        self.dashboard_page.camera_status_changed.connect(self.update_system_status)
-        self.update_system_status('NOT CONNECTED')
+        self.dashboard_page.arduino_connection_changed.connect(
+            self.update_system_status
+        )
+        self.update_system_status(self.dashboard_page.arduino_connected)
 
         dashboard_scroll = QScrollArea()
         dashboard_scroll.setObjectName('dashboard_scroll')
@@ -258,7 +260,7 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def update_system_status(self, state):
-        connected = state == 'CONNECTED'
+        connected = bool(state)
         status_text = 'SYSTEM CONNECTED' if connected else 'SYSTEM NOT CONNECTED'
         self.status_text.setText(status_text)
         color = '#2e7d4f' if connected else '#c0392b'
