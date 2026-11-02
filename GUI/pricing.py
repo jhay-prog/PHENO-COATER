@@ -241,12 +241,6 @@ class PricingSettingsPage(QWidget):
 
         result_panel = self._create_panel("Price Result")
         result_layout = result_panel.layout()
-        self.arduino_status_label = QLabel(
-            "Checking for Arduino serial connection..."
-        )
-        self.arduino_status_label.setObjectName("pricing_arduino_status")
-        self.arduino_status_label.setWordWrap(True)
-        result_layout.addWidget(self.arduino_status_label)
         self.calibration_prompt_label = QLabel(
             "Arduino calibration prompts will appear here."
         )
@@ -567,38 +561,6 @@ class PricingSettingsPage(QWidget):
         self.pns_score_input.setText(str(result["score"]))
         self.pns_grade_label.setText(result["grade"])
         self._update_calculation()
-
-    def set_arduino_status(self, message):
-        normalized = message.casefold()
-        is_not_detected = "not detected" in normalized
-        is_connection_notice = normalized.startswith("connected on ")
-        display_message = (
-            "Load cells connected"
-            if "live load-cell reading" in normalized
-            else "" if is_not_detected or is_connection_notice else message
-        )
-        self.arduino_status_label.setText(display_message)
-        self.arduino_status_label.setVisible(
-            not is_not_detected and not is_connection_notice
-        )
-        state = (
-            "connected"
-            if "live load-cell reading" in normalized
-            else "error"
-            if any(
-                word in normalized
-                for word in ("not detected", "failed", "error", "could not")
-            )
-            else "waiting"
-        )
-        if self.arduino_status_label.property("status_state") != state:
-            self.arduino_status_label.setProperty("status_state", state)
-            self.arduino_status_label.style().unpolish(
-                self.arduino_status_label
-            )
-            self.arduino_status_label.style().polish(
-                self.arduino_status_label
-            )
 
     def update_calibration_prompt(self, message):
         normalized = message.casefold()

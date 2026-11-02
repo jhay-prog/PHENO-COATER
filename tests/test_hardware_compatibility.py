@@ -1291,7 +1291,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         page.deleteLater()
 
-    def test_pricing_result_has_clear_total_card_and_quiet_calibration_controls(self):
+    def test_pricing_result_keeps_total_card_and_calibration_controls(self):
         page = PricingSettingsPage()
         self.assertIsNotNone(
             page.findChild(QWidget, "pricing_total_card")
@@ -1300,22 +1300,11 @@ class HardwareCompatibilityTests(unittest.TestCase):
             len(page.findChildren(QWidget, "pricing_result_row")),
             3,
         )
+        self.assertIsNone(
+            page.findChild(QWidget, "pricing_arduino_status")
+        )
         self.assertTrue(page.calibration_prompt_label.isHidden())
         self.assertTrue(page.calibration_continue_button.isHidden())
-        page.set_arduino_status(
-            "Connected on COM7; waiting for Arduino sensor readings."
-        )
-        self.assertTrue(page.arduino_status_label.isHidden())
-        self.assertEqual(page.arduino_status_label.text(), "")
-        page.set_arduino_status("Live load-cell reading: 2.000 kg")
-        self.assertEqual(
-            page.arduino_status_label.property("status_state"),
-            "connected",
-        )
-        self.assertEqual(
-            page.arduino_status_label.text(),
-            "Load cells connected",
-        )
         page.update_calibration_prompt("Send C to tare.")
         self.assertFalse(page.calibration_prompt_label.isHidden())
         self.assertFalse(page.calibration_continue_button.isHidden())
@@ -1819,16 +1808,17 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_normal_window_starts_on_dashboard_and_denies_admin_routes(self):
         with patch("GUI.main_window.Dashboard", FakeDashboard):
             window = MainWindow()
-        self.assertTrue(window.pricing_page.arduino_status_label.isHidden())
-        self.assertEqual(window.pricing_page.arduino_status_label.text(), "")
+
+        self.assertIsNone(
+            window.pricing_page.findChild(QWidget, "pricing_arduino_status")
+        )
         window.dashboard_page.current_weight_changed.emit(2.0)
         self.assertEqual(window.pricing_page.weight_input.text(), "2.000")
         window.dashboard_page.arduino_status_changed.emit(
             "Live load-cell reading: 2.000 kg"
         )
-        self.assertEqual(
-            window.pricing_page.arduino_status_label.text(),
-            "Live load-cell reading: 2.000 kg",
+        self.assertFalse(
+            hasattr(window.pricing_page, "arduino_status_label")
         )
         window.dashboard_page.nir_message_received.emit(
             "Send C to tare."

@@ -155,16 +155,6 @@ class MainWindow(QMainWindow):
         self.dashboard_page.current_weight_changed.connect(
             self.pricing_page.set_current_weight
         )
-        self.dashboard_page.arduino_status_changed.connect(
-            self.pricing_page.set_arduino_status
-        )
-        self.pricing_page.set_arduino_status(
-            getattr(
-                self.dashboard_page,
-                "arduino_status_message",
-                "Checking for Arduino serial connection...",
-            )
-        )
         self.pricing_page.set_current_weight(
             getattr(self.dashboard_page, "current_weight_kg", None)
         )

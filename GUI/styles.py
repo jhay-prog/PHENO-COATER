@@ -330,33 +330,6 @@ QTableWidget#bean_data_table QHeaderView::section {
     font-size: 12px;
 }
 
-#pricing_arduino_status {
-    background-color: #f4f7f5;
-    border: 1px solid #e1e9e3;
-    border-radius: 7px;
-    color: #53675b;
-    font-size: 12px;
-    padding: 7px 9px;
-}
-
-#pricing_arduino_status[status_state="connected"] {
-    background-color: #edf6ef;
-    border-color: #d4e7d8;
-    color: #24643e;
-}
-
-#pricing_arduino_status[status_state="error"] {
-    background-color: #fff2f0;
-    border-color: #f1d8d3;
-    color: #9f3933;
-}
-
-#pricing_arduino_status[status_state="waiting"] {
-    background-color: #f4f7f5;
-    border-color: #e1e9e3;
-    color: #53675b;
-}
-
 #pricing_calibration_prompt {
     background-color: #fff8e8;
     border: 1px solid #f0e2bd;
