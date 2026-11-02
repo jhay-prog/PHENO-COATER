@@ -1,6 +1,6 @@
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtCharts import QCategoryAxis, QChart, QChartView, QLineSeries, QValueAxis
+from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -81,18 +81,21 @@ class NIRAnalysisPage(QWidget):
         spectrum_chart.setPlotAreaBackgroundBrush(QColor("#f4f6f8"))
         spectrum_chart.setPlotAreaBackgroundVisible(True)
 
-        self.wavelength_axis = QCategoryAxis()
-        self.wavelength_axis.setStartValue(-0.5)
-        self.wavelength_axis.setRange(-0.5, len(WAVELENGTHS) - 0.5)
-        self.wavelength_axis.setLabelsPosition(
-            QCategoryAxis.AxisLabelsPosition.AxisLabelsPositionCenter
+        self.wavelength_axis = QValueAxis()
+        self.wavelength_axis.setTitleText("Wavelength (nm)")
+        self.wavelength_axis.setRange(
+            WAVELENGTHS[0],
+            WAVELENGTHS[-1],
         )
+        self.wavelength_axis.setTickCount(12)
+        self.wavelength_axis.setLabelFormat("%.0f")
         channel_font = QFont()
         channel_font.setPixelSize(TYPOGRAPHY_SCALE["caption"])
         self.wavelength_axis.setLabelsFont(channel_font)
-        for index, wavelength in enumerate(WAVELENGTHS):
-            self.wavelength_axis.append(str(wavelength), index + 0.5)
-        spectrum_chart.addAxis(self.wavelength_axis, Qt.AlignmentFlag.AlignTop)
+        spectrum_chart.addAxis(
+            self.wavelength_axis,
+            Qt.AlignmentFlag.AlignBottom,
+        )
         self.spectrum_series.attachAxis(self.wavelength_axis)
 
         self.intensity_axis = QValueAxis()
@@ -192,6 +195,13 @@ class NIRAnalysisPage(QWidget):
     def append_serial_line(self, line):
         if not line:
             return
+        if line.startswith("NIR_SCAN_STATUS:"):
+            status = line.partition(":")[2].strip().upper()
+            self.set_scanning_state(
+                status in ("SCANNING", "WAITING", "MEASURING")
+            )
+        elif line.startswith("NIR_SCAN_ERROR:"):
+            self.set_scanning_state(False)
         if not self.received_serial_data:
             self.serial_output.clear()
             self.received_serial_data = True
@@ -222,8 +232,8 @@ class NIRAnalysisPage(QWidget):
             if reading.value is not None
         ]
         points = [
-            QPointF(index, reading.value)
-            for index, reading in enumerate(self.readings)
+            QPointF(reading.wavelength_nm, reading.value)
+            for reading in self.readings
             if reading.value is not None
         ]
         self.spectrum_series.replace(points)

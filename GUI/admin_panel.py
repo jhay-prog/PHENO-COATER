@@ -108,6 +108,7 @@ class SystemOverviewPage(QWidget):
         self.setObjectName("admin_system_overview_page")
         self.dashboard = dashboard
         self.dashboard.ir_sensor_status_changed.connect(self.refresh_status)
+        self.dashboard.nir_status_changed.connect(self.refresh_status)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)

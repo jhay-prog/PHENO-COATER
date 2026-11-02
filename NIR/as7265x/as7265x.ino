@@ -1,644 +1,408 @@
-#include <Arduino.h>
-#include <HX711.h>
-#include <Servo.h>
-#include <SparkFun_AS7265X.h>
+/*
+  PhenoCoater - NIR Scanner + IR Bean Counter
+  Board : Arduino Mega 2560
+
+  ---------------------------- WIRING ----------------------------
+  IR bean sensor (3-wire obstacle / break-beam sensor)
+    VCC  -> Mega 5V
+    GND  -> Mega GND
+    OUT  -> Mega pin 2          (signal goes LOW when a bean is detected)
+    (E18-D80NK colors: brown = 5V, blue = GND, black = OUT)
+
+  AS7265X Spectral Triad (NIR sensor)
+    SDA  -> Mega pin 20
+    SCL  -> Mega pin 21
+    3.3V -> Mega 3.3V
+    GND  -> Mega GND
+    NOTE: the Triad is 3.3 V and the Mega is 5 V. Use a bidirectional
+    I2C level shifter (or a Qwiic-style shield) between them.
+
+  All grounds must be common.
+  -----------------------------------------------------------------
+
+  Library (Arduino IDE > Library Manager):
+    "SparkFun Spectral Triad AS7265X"  (SparkFun_AS7265X)
+
+  Serial protocol (matches the PhenoCoater GUI, GUI/dashboard.py)
+    PC -> Arduino (each command ends with newline):
+      START_SAMPLE  reset the bean count to 0 and start counting  (Start System)
+      STOP_SAMPLE   stop counting and report the final count      (Stop System)
+      S             start continuous NIR scanning  (START SCAN, NIR Analysis tab)
+      P             stop NIR scanning              (STOP SCANNING)
+      D<ms>         pause between NIR scans in ms, 0-60000   e.g. D500
+    Arduino -> PC:
+      BEAN_COUNT: 12                        one line each time a bean is counted
+                                            (updates TOTAL BEANS on the dashboard)
+      FINAL_BEAN_COUNT: 57                  sent when STOP_SAMPLE is received
+      AS7265X READY                         NIR sensor found
+      410nm: 12.34, 435nm: 13.20, ... 940nm: 9.87
+                                            one line per NIR scan, all 18 channels
+      other status / ERROR lines            shown in the NIR serial monitor
+
+  Serial baud rate must match Dashboard.arduino_baud_rate in GUI/dashboard.py.
+*/
+
 #include <Wire.h>
+#include <SparkFun_AS7265X.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-const uint8_t IR_PIN = 2;
-const uint8_t SEPARATOR_MOTOR_PWM_PIN = 5;
-const uint8_t ROLLER_STEPPER_PINS[4] =
-{
-  22, 23, 24, 25
-};
-const uint8_t SORT_GATE_SERVO_PIN = 9;
-const uint8_t SCOOP_SERVO_PIN = 10;
-const uint8_t GOOD_HX711_DATA_PIN = 6;
-const uint8_t GOOD_HX711_CLOCK_PIN = 7;
-const uint8_t NOT_GOOD_HX711_DATA_PIN = 4;
-const uint8_t NOT_GOOD_HX711_CLOCK_PIN = 8;
+// ======================= SETTINGS =======================
+const unsigned long BAUD_RATE = 115200;            // must match the GUI
 
-const int IR_DETECTED_STATE = LOW;
-const unsigned long IR_DEBOUNCE_US = 10000;
-const unsigned long STEPPER_STEP_INTERVAL_MS = 2;
-const unsigned long SORT_GATE_HOLD_MS = 500;
-const unsigned long SCOOP_HOLD_MS = 300;
-const unsigned long NIR_MEASUREMENT_TIMEOUT_MS = 1200;
-const unsigned long LOAD_CELL_REPORT_INTERVAL_MS = 500;
-const long ROLLER_STEPS_PER_REVOLUTION = 4096;
-const int SEPARATOR_MOTOR_PWM = 160;
+// ---- IR bean counter ----
+const byte          IR_PIN            = 2;         // sensor OUT
+const int           DETECTED_STATE    = LOW;       // pin level when a bean is in front of the sensor
+const unsigned long DEBOUNCE_MS       = 40;        // signal must be stable this long to count
+const unsigned long COUNT_COOLDOWN_MS = 1500;      // minimum time between two counted beans
 
-// Calibrate these positions against the assembled gate and scoop before use.
-const int GATE_GOOD_ANGLE = 45;
-const int GATE_NOT_GOOD_ANGLE = 135;
-const int GATE_HOME_ANGLE = 90;
-const int SCOOP_NIR_ANGLE = 90;
-const int SCOOP_RELEASE_ANGLE = 45;
+// ---- NIR scanner ----
+const bool    USE_CALIBRATED     = true;           // true: calibrated values, false: raw ADC counts
+const bool    USE_BULB           = true;           // light the sensor's own LEDs during each scan
+const uint8_t GAIN               = AS7265X_GAIN_16X;               // 1X, 37X, 16X, 64X
+const uint8_t INTEGRATION_CYCLES = 49;             // time = (cycles + 1) * 2.8 ms, x2 in 18-channel mode
+const uint8_t BULB_CURRENT       = AS7265X_LED_CURRENT_LIMIT_12_5MA; // 12_5MA, 25MA, 50MA, 100MA
 
-// Replace these placeholders with measured calibration factors before weighing.
-const float GOOD_LOAD_CELL_CALIBRATION = 1.0f;
-const float NOT_GOOD_LOAD_CELL_CALIBRATION = 1.0f;
+const unsigned long MEASURE_TIMEOUT_MS = 1500;     // give up on one reading after this long
+const unsigned long SENSOR_RETRY_MS    = 2000;     // how often to retry a missing sensor
+const unsigned long MAX_SCAN_DELAY_MS  = 60000;
+// ========================================================
 
-const uint8_t HALF_STEP_SEQUENCE[8] =
-{
-  0b0001, 0b0011, 0b0010, 0b0110,
-  0b0100, 0b1100, 0b1000, 0b1001
-};
-const size_t COMMAND_BUFFER_SIZE = 32;
+// ======================= IR BEAN COUNTER =======================
 
-enum ProcessStage
-{
-  PROCESS_IDLE,
-  PROCESS_ROTATING,
-  PROCESS_WAITING_FOR_CLASSIFICATION,
-  PROCESS_GATE_HOLD,
-  PROCESS_NIR_SCAN,
-  PROCESS_SCOOP_HOLD
-};
+unsigned long beanCount          = 0;
+bool          sampleActive       = false;
+bool          countCooldownActive = false;
 
-AS7265X nirSensor;
-HX711 goodLoadCell;
-HX711 notGoodLoadCell;
-Servo sortGate;
-Servo scoop;
-
-bool nirSensorReady = false;
-bool nirScanning = false;
-bool measurementRunning = false;
-bool currentBeanIsGood = false;
-bool goodLoadCellTared = false;
-bool notGoodLoadCellTared = false;
-volatile bool sampleActive = false;
-volatile unsigned long pendingIrDetections = 0;
-volatile unsigned long lastIrInterruptTime = 0;
-
-unsigned long beanCount = 0;
-unsigned long measurementStartTime = 0;
-unsigned long nextMeasurementTime = 0;
-unsigned long nirScanDelayMs = 500;
-unsigned long stageStartedAt = 0;
-unsigned long lastLoadCellReport = 0;
-
-uint8_t stepperSequenceIndex = 0;
-long rollerStepsRemaining = 0;
-unsigned long lastStepperStep = 0;
-int separatorMotorPwm = 0;
-ProcessStage processStage = PROCESS_IDLE;
-
-char commandBuffer[COMMAND_BUFFER_SIZE];
-size_t commandLength = 0;
-bool commandOverflow = false;
-
-void onIrDetected()
-{
-  const unsigned long now = micros();
-  if (sampleActive &&
-      now - lastIrInterruptTime >= IR_DEBOUNCE_US)
-  {
-    lastIrInterruptTime = now;
-    pendingIrDetections++;
-  }
-}
-
-bool parseLongList(char *text, long *values, size_t count)
-{
-  char *cursor = text;
-  for (size_t index = 0; index < count; index++)
-  {
-    char *end = nullptr;
-    values[index] = strtol(cursor, &end, 10);
-    if (end == cursor)
-    {
-      return false;
-    }
-    if (index + 1 < count)
-    {
-      if (*end != ',')
-      {
-        return false;
-      }
-      cursor = end + 1;
-    }
-    else if (*end != '\0')
-    {
-      return false;
-    }
-  }
-  return true;
-}
-
-void setSeparatorMotor(int pwm)
-{
-  separatorMotorPwm = constrain(pwm, 0, 255);
-  analogWrite(
-    SEPARATOR_MOTOR_PWM_PIN,
-    sampleActive && processStage == PROCESS_IDLE
-      ? separatorMotorPwm
-      : 0
-  );
-}
-
-void pauseSeparatorMotor()
-{
-  analogWrite(SEPARATOR_MOTOR_PWM_PIN, 0);
-}
-
-void releaseRollerStepper()
-{
-  for (uint8_t pin = 0; pin < 4; pin++)
-  {
-    digitalWrite(ROLLER_STEPPER_PINS[pin], LOW);
-  }
-}
-
-void startRollerRotation()
-{
-  rollerStepsRemaining = ROLLER_STEPS_PER_REVOLUTION;
-  lastStepperStep = millis();
-  processStage = PROCESS_ROTATING;
-  Serial.println("BEAN_ROTATION_STARTED");
-}
-
-void updateRollerStepper()
-{
-  if (processStage != PROCESS_ROTATING || rollerStepsRemaining == 0)
-  {
-    return;
-  }
-
-  const unsigned long now = millis();
-  if (now - lastStepperStep < STEPPER_STEP_INTERVAL_MS)
-  {
-    return;
-  }
-  lastStepperStep = now;
-
-  stepperSequenceIndex = (stepperSequenceIndex + 1) % 8;
-  const uint8_t pattern = HALF_STEP_SEQUENCE[stepperSequenceIndex];
-  for (uint8_t coil = 0; coil < 4; coil++)
-  {
-    digitalWrite(
-      ROLLER_STEPPER_PINS[coil],
-      (pattern & (1 << coil)) ? HIGH : LOW
-    );
-  }
-
-  rollerStepsRemaining--;
-  if (rollerStepsRemaining == 0)
-  {
-    releaseRollerStepper();
-    processStage = PROCESS_WAITING_FOR_CLASSIFICATION;
-    Serial.println("BEAN_READY_FOR_CLASSIFICATION");
-  }
-}
+int           lastRawState       = HIGH;
+int           stableState        = HIGH;
+unsigned long lastChangeTime     = 0;
+unsigned long lastBeanCountTime  = 0;
 
 void startSample()
 {
-  if (sampleActive)
-  {
-    Serial.println("SAMPLE_STARTED");
-    Serial.print("BEAN_COUNT: ");
-    Serial.println(beanCount);
-    return;
-  }
-
-  stopNirMeasurement();
-  beanCount = 0;
-  noInterrupts();
-  pendingIrDetections = 0;
-  lastIrInterruptTime = micros() - IR_DEBOUNCE_US;
-  if (digitalRead(IR_PIN) == IR_DETECTED_STATE)
-  {
-    pendingIrDetections = 1;
-  }
+  beanCount    = 0;
   sampleActive = true;
-  interrupts();
-  processStage = PROCESS_IDLE;
-  rollerStepsRemaining = 0;
-  releaseRollerStepper();
-  setSeparatorMotor(separatorMotorPwm == 0
-    ? SEPARATOR_MOTOR_PWM
-    : separatorMotorPwm);
-  Serial.println("SAMPLE_STARTED");
-  Serial.println("BEAN_COUNT: 0");
-}
 
-void stopNirMeasurement()
-{
-  if (!measurementRunning)
-  {
-    return;
-  }
-  nirSensor.disableBulb(AS7265x_LED_WHITE);
-  nirSensor.disableBulb(AS7265x_LED_IR);
-  nirSensor.disableBulb(AS7265x_LED_UV);
-  measurementRunning = false;
-}
+  stableState  = digitalRead(IR_PIN);
+  lastRawState = stableState;
+  lastChangeTime = millis();
+  countCooldownActive = false;
 
-void updateIrCounter();
+  Serial.println(F("SAMPLE_STARTED"));
+  Serial.println(F("BEAN_COUNT: 0"));
+}
 
 void stopSample()
 {
-  if (!sampleActive)
-  {
-    return;
-  }
-  updateIrCounter();
+  if (!sampleActive) return;
   sampleActive = false;
-  pauseSeparatorMotor();
-  rollerStepsRemaining = 0;
-  releaseRollerStepper();
-  stopNirMeasurement();
-  processStage = PROCESS_IDLE;
-  sortGate.write(GATE_HOME_ANGLE);
-  scoop.write(SCOOP_RELEASE_ANGLE);
-  Serial.print("FINAL_BEAN_COUNT: ");
+
+  Serial.print(F("FINAL_BEAN_COUNT: "));
   Serial.println(beanCount);
-  Serial.println("SAMPLE_COMPLETE");
+  Serial.println(F("SAMPLE_COMPLETE"));
 }
 
-void updateIrCounter()
+// Call as often as possible. It is also called between NIR channel reads
+// so a bean is never missed while the NIR sensor is being read.
+void irUpdate()
 {
-  noInterrupts();
-  const unsigned long detections = pendingIrDetections;
-  pendingIrDetections = 0;
-  interrupts();
+  if (!sampleActive) return;
 
-  for (unsigned long detection = 0; detection < detections; detection++)
+  const int rawState = digitalRead(IR_PIN);
+
+  if (rawState != lastRawState)
   {
-    beanCount++;
-    Serial.println("IR_SENSOR_DETECTED");
-    Serial.print("BEAN_COUNT: ");
-    Serial.println(beanCount);
-    if (sampleActive && processStage == PROCESS_IDLE)
+    lastRawState = rawState;
+    lastChangeTime = millis();
+  }
+
+  if (millis() - lastChangeTime >= DEBOUNCE_MS && rawState != stableState)
+  {
+    stableState = rawState;
+
+    if (stableState == DETECTED_STATE && !countCooldownActive)
     {
-      pauseSeparatorMotor();
-      startRollerRotation();
+      beanCount++;
+      lastBeanCountTime = millis();
+      countCooldownActive = true;
+
+      Serial.print(F("BEAN_COUNT: "));
+      Serial.println(beanCount);
     }
   }
-}
 
-void startNirMeasurement()
-{
-  if (!nirSensorReady)
+  if (countCooldownActive &&
+      stableState != DETECTED_STATE &&
+      millis() - lastBeanCountTime >= COUNT_COOLDOWN_MS)
   {
-    Serial.println("ERROR: AS7265X is not connected; skipping NIR scan.");
-    return;
+    countCooldownActive = false;
   }
-  nirSensor.enableBulb(AS7265x_LED_WHITE);
-  nirSensor.enableBulb(AS7265x_LED_IR);
-  nirSensor.enableBulb(AS7265x_LED_UV);
-  nirSensor.setMeasurementMode(AS7265X_MEASUREMENT_MODE_6CHAN_ONE_SHOT);
-  measurementStartTime = millis();
-  measurementRunning = true;
 }
 
-void printNirMeasurement()
+// ======================= NIR SCANNER =======================
+
+const uint8_t CHANNEL_COUNT = 18;
+// Wavelength order of the Triad's channels: A B C D E F G H R I S J T U V W K L
+const uint16_t WAVELENGTHS[CHANNEL_COUNT] = {
+  410, 435, 460, 485, 510, 535, 560, 585, 610,
+  645, 680, 705, 730, 760, 810, 860, 900, 940
+};
+
+AS7265X sensor;
+
+bool sensorReady = false;
+bool scanning    = false;     // requested by the GUI (S / P)
+bool measuring   = false;     // a one-shot reading is in progress
+
+unsigned long scanDelayMs         = 0;
+unsigned long nextScanAt          = 0;
+unsigned long measureStartedAt    = 0;
+unsigned long nextSensorAttemptAt = 0;
+
+const size_t COMMAND_BUFFER_SIZE = 24;
+char   commandBuffer[COMMAND_BUFFER_SIZE];
+size_t commandLength = 0;
+
+bool connectSensor()
 {
-  Serial.print("410nm: "); Serial.print(nirSensor.getCalibratedA());
-  Serial.print(" | 435nm: "); Serial.print(nirSensor.getCalibratedB());
-  Serial.print(" | 460nm: "); Serial.print(nirSensor.getCalibratedC());
-  Serial.print(" | 485nm: "); Serial.print(nirSensor.getCalibratedD());
-  Serial.print(" | 510nm: "); Serial.print(nirSensor.getCalibratedE());
-  Serial.print(" | 535nm: "); Serial.print(nirSensor.getCalibratedF());
-  Serial.print(" | 560nm: "); Serial.print(nirSensor.getCalibratedG());
-  Serial.print(" | 585nm: "); Serial.print(nirSensor.getCalibratedH());
-  Serial.print(" | 610nm: "); Serial.print(nirSensor.getCalibratedI());
-  Serial.print(" | 645nm: "); Serial.print(nirSensor.getCalibratedJ());
-  Serial.print(" | 680nm: "); Serial.print(nirSensor.getCalibratedK());
-  Serial.print(" | 705nm: "); Serial.print(nirSensor.getCalibratedL());
-  Serial.print(" | 730nm: "); Serial.print(nirSensor.getCalibratedR());
-  Serial.print(" | 760nm: "); Serial.print(nirSensor.getCalibratedS());
-  Serial.print(" | 810nm: "); Serial.print(nirSensor.getCalibratedT());
-  Serial.print(" | 860nm: "); Serial.print(nirSensor.getCalibratedU());
-  Serial.print(" | 900nm: "); Serial.print(nirSensor.getCalibratedV());
-  Serial.print(" | 940nm: "); Serial.println(nirSensor.getCalibratedW());
+  if (!sensor.begin())          // uses Wire (Mega: SDA 20, SCL 21)
+  {
+    sensorReady = false;
+    return false;
+  }
+  sensor.disableIndicator();      // blue status LED off
+  sensor.setGain(GAIN);
+  sensor.setIntegrationCycles(INTEGRATION_CYCLES);
+  sensor.setBulbCurrent(BULB_CURRENT, AS7265x_LED_WHITE);
+  sensor.setBulbCurrent(BULB_CURRENT, AS7265x_LED_IR);
+  sensor.setBulbCurrent(BULB_CURRENT, AS7265x_LED_UV);
+  sensorReady = true;
+  Serial.println(F("AS7265X READY"));
+  return true;
 }
 
-void updateLoadCells()
+void setBulbs(bool on)
 {
+  if (!USE_BULB || !sensorReady) return;
+  if (on)
+  {
+    sensor.enableBulb(AS7265x_LED_WHITE);
+    sensor.enableBulb(AS7265x_LED_IR);
+    sensor.enableBulb(AS7265x_LED_UV);
+  }
+  else
+  {
+    sensor.disableBulb(AS7265x_LED_WHITE);
+    sensor.disableBulb(AS7265x_LED_IR);
+    sensor.disableBulb(AS7265x_LED_UV);
+  }
+}
+
+// Starts one 18-channel reading and returns immediately (non-blocking),
+// so a "P" command from the GUI is handled within milliseconds.
+void beginMeasurement()
+{
+  setBulbs(true);
+  sensor.setMeasurementMode(AS7265X_MEASUREMENT_MODE_6CHAN_ONE_SHOT);
+  measureStartedAt = millis();
+  measuring = true;
+}
+
+void endMeasurement()
+{
+  setBulbs(false);
+  measuring = false;
+}
+
+// Reads one channel, then lets the bean counter check its sensor.
+#define CH(letter) (irUpdate(), (USE_CALIBRATED ? sensor.getCalibrated##letter() : (float)sensor.get##letter()))
+
+void readChannels(float *v)
+{
+  v[0]  = CH(A);  // 410
+  v[1]  = CH(B);  // 435
+  v[2]  = CH(C);  // 460
+  v[3]  = CH(D);  // 485
+  v[4]  = CH(E);  // 510
+  v[5]  = CH(F);  // 535
+  v[6]  = CH(G);  // 560
+  v[7]  = CH(H);  // 585
+  v[8]  = CH(R);  // 610
+  v[9]  = CH(I);  // 645
+  v[10] = CH(S);  // 680
+  v[11] = CH(J);  // 705
+  v[12] = CH(T);  // 730
+  v[13] = CH(U);  // 760
+  v[14] = CH(V);  // 810
+  v[15] = CH(W);  // 860
+  v[16] = CH(K);  // 900
+  v[17] = CH(L);  // 940
+}
+
+// One line per scan: "410nm: 12.34, 435nm: 13.20, ..."
+void printSpectrum(const float *v)
+{
+  bool first = true;
+  for (uint8_t i = 0; i < CHANNEL_COUNT; i++)
+  {
+    if (isnan(v[i]) || isinf(v[i])) continue;   // GUI shows NO DATA for a missing channel
+    if (!first) Serial.print(F(", "));
+    Serial.print(WAVELENGTHS[i]);
+    Serial.print(F("nm: "));
+    Serial.print(v[i], 2);
+    first = false;
+  }
+  if (first)
+  {
+    Serial.println(F("ERROR: AS7265X returned no valid data."));
+  }
+  else
+  {
+    Serial.println();
+  }
+}
+
+void startScan()
+{
+  if (scanning) return;
+  scanning  = true;
+  measuring = false;
+  nextScanAt = millis();
+  nextSensorAttemptAt = millis();
+  Serial.println(F("SCAN_STARTED"));
+}
+
+void stopScan()
+{
+  if (!scanning) return;
+  if (measuring) endMeasurement();
+  scanning = false;
+  Serial.println(F("SCAN_STOPPED"));
+}
+
+void nirUpdate()
+{
+  if (!scanning) return;
   const unsigned long now = millis();
-  if (!goodLoadCellTared && goodLoadCell.is_ready())
-  {
-    goodLoadCell.tare(20);
-    goodLoadCellTared = true;
-  }
-  if (!notGoodLoadCellTared && notGoodLoadCell.is_ready())
-  {
-    notGoodLoadCell.tare(20);
-    notGoodLoadCellTared = true;
-  }
-  if (now - lastLoadCellReport < LOAD_CELL_REPORT_INTERVAL_MS)
-  {
-    return;
-  }
-  lastLoadCellReport = now;
 
-  if (!goodLoadCellTared || !notGoodLoadCellTared ||
-      !goodLoadCell.is_ready() || !notGoodLoadCell.is_ready())
+  // Sensor missing or lost: keep retrying while a scan is requested.
+  if (!sensorReady)
   {
-    Serial.println("ERROR: One or both HX711 modules are not ready.");
-    return;
-  }
-
-  Serial.print("Load Cell 1: ");
-  Serial.print(goodLoadCell.get_units(5), 2);
-  Serial.print(" g | Load Cell 2: ");
-  Serial.print(notGoodLoadCell.get_units(5), 2);
-  Serial.println(" g");
-}
-
-void tareLoadCells()
-{
-  if (!goodLoadCell.is_ready() || !notGoodLoadCell.is_ready())
-  {
-    Serial.println("ERROR: One or both HX711 modules are not ready.");
-    return;
-  }
-  goodLoadCell.tare(20);
-  notGoodLoadCell.tare(20);
-  goodLoadCellTared = true;
-  notGoodLoadCellTared = true;
-  Serial.println("Calibration complete: load-cell zero tare completed.");
-}
-
-void beginBeanSorting(bool isGood)
-{
-  if (processStage != PROCESS_WAITING_FOR_CLASSIFICATION)
-  {
-    return;
-  }
-  currentBeanIsGood = isGood;
-  sortGate.write(isGood ? GATE_GOOD_ANGLE : GATE_NOT_GOOD_ANGLE);
-  stageStartedAt = millis();
-  processStage = PROCESS_GATE_HOLD;
-  Serial.println(isGood ? "SORT_ROUTE:GOOD" : "SORT_ROUTE:NOT_GOOD");
-}
-
-void updateBeanProcess()
-{
-  const unsigned long now = millis();
-  if (processStage == PROCESS_GATE_HOLD &&
-      now - stageStartedAt >= SORT_GATE_HOLD_MS)
-  {
-    if (currentBeanIsGood)
+    if ((long)(now - nextSensorAttemptAt) >= 0)
     {
-      scoop.write(SCOOP_NIR_ANGLE);
-      if (nirSensorReady)
+      nextSensorAttemptAt = now + SENSOR_RETRY_MS;
+      if (!connectSensor())
       {
-        startNirMeasurement();
-        processStage = PROCESS_NIR_SCAN;
-      }
-      else
-      {
-        scoop.write(SCOOP_RELEASE_ANGLE);
-        stageStartedAt = now;
-        processStage = PROCESS_SCOOP_HOLD;
+        Serial.println(F("ERROR: AS7265X not detected. Check SDA/SCL wiring and power."));
       }
     }
-    else
-    {
-      sortGate.write(GATE_HOME_ANGLE);
-      stageStartedAt = now;
-      processStage = PROCESS_SCOOP_HOLD;
-    }
+    return;
   }
-  else if (processStage == PROCESS_NIR_SCAN)
+
+  if (!measuring)
   {
-    if (measurementRunning && nirSensor.dataAvailable())
-    {
-      stopNirMeasurement();
-      printNirMeasurement();
-      scoop.write(SCOOP_RELEASE_ANGLE);
-      stageStartedAt = now;
-      processStage = PROCESS_SCOOP_HOLD;
-    }
-    else if (measurementRunning &&
-             now - measurementStartTime >= NIR_MEASUREMENT_TIMEOUT_MS)
-    {
-      stopNirMeasurement();
-      Serial.println("ERROR: NIR measurement timed out.");
-      scoop.write(SCOOP_RELEASE_ANGLE);
-      stageStartedAt = now;
-      processStage = PROCESS_SCOOP_HOLD;
-    }
+    if ((long)(now - nextScanAt) >= 0) beginMeasurement();
+    return;
   }
-  else if (processStage == PROCESS_SCOOP_HOLD &&
-           now - stageStartedAt >= SCOOP_HOLD_MS)
+
+  if (sensor.dataAvailable())
   {
-    sortGate.write(GATE_HOME_ANGLE);
-    processStage = PROCESS_IDLE;
-    Serial.println(
-      currentBeanIsGood ? "BEAN_SORTED:GOOD" : "BEAN_SORTED:NOT_GOOD"
-    );
-    if (sampleActive)
-    {
-      setSeparatorMotor(separatorMotorPwm);
-    }
+    float values[CHANNEL_COUNT];
+    readChannels(values);
+    endMeasurement();
+    printSpectrum(values);
+    nextScanAt = millis() + scanDelayMs;
+  }
+  else if (now - measureStartedAt > MEASURE_TIMEOUT_MS)
+  {
+    endMeasurement();
+    sensorReady = false;           // force a clean re-init on the next pass
+    nextSensorAttemptAt = now;
+    Serial.println(F("ERROR: AS7265X measurement timed out."));
   }
 }
 
-void processCommand()
+// ======================= SERIAL COMMANDS =======================
+
+void handleCommand(const char *cmd)
 {
-  commandBuffer[commandLength] = '\0';
-  if (strcmp(commandBuffer, "START_SAMPLE") == 0)
+  if (strcmp(cmd, "START_SAMPLE") == 0)
   {
     startSample();
   }
-  else if (strcmp(commandBuffer, "STOP_SAMPLE") == 0)
+  else if (strcmp(cmd, "STOP_SAMPLE") == 0)
   {
     stopSample();
   }
-  else if (strcmp(commandBuffer, "SORT_GOOD") == 0)
+  else if (strcmp(cmd, "S") == 0)
   {
-    beginBeanSorting(true);
+    startScan();
   }
-  else if (strcmp(commandBuffer, "SORT_NOT_GOOD") == 0)
+  else if (strcmp(cmd, "P") == 0)
   {
-    beginBeanSorting(false);
+    stopScan();
   }
-  else if (strcmp(commandBuffer, "S") == 0)
-  {
-    nirScanning = true;
-    nextMeasurementTime = millis();
-  }
-  else if (strcmp(commandBuffer, "P") == 0)
-  {
-    nirScanning = false;
-    if (processStage != PROCESS_NIR_SCAN)
-    {
-      stopNirMeasurement();
-    }
-  }
-  else if (strcmp(commandBuffer, "N?") == 0)
-  {
-    Serial.print("NIR_STATUS:");
-    Serial.println(nirSensorReady ? "CONNECTED" : "NOT_CONNECTED");
-  }
-  else if (strcmp(commandBuffer, "C") == 0)
-  {
-    tareLoadCells();
-  }
-  else if (commandBuffer[0] == 'D')
+  else if (cmd[0] == 'D' && cmd[1] != '\0')
   {
     char *end = nullptr;
-    const long delayMs = strtol(commandBuffer + 1, &end, 10);
-    if (*end == '\0' && delayMs >= 0 && delayMs <= 60000)
+    unsigned long value = strtoul(cmd + 1, &end, 10);
+    if (*end == '\0')
     {
-      nirScanDelayMs = static_cast<unsigned long>(delayMs);
+      scanDelayMs = value > MAX_SCAN_DELAY_MS ? MAX_SCAN_DELAY_MS : value;
+      Serial.print(F("SCAN_DELAY_MS: "));
+      Serial.println(scanDelayMs);
     }
   }
-  else if (commandBuffer[0] == 'V')
-  {
-    char *end = nullptr;
-    const long pwm = strtol(commandBuffer + 1, &end, 10);
-    if (*end == '\0' && pwm >= 0 && pwm <= 255)
-    {
-      setSeparatorMotor(static_cast<int>(pwm));
-    }
-  }
-  else if (commandBuffer[0] == 'A')
-  {
-    long values[2];
-    if (parseLongList(commandBuffer + 1, values, 2) &&
-        values[0] >= 1 && values[0] <= 2 &&
-        values[1] >= 0 && values[1] <= 180)
-    {
-      if (values[0] == 1)
-      {
-        sortGate.write(static_cast<int>(values[1]));
-      }
-      else
-      {
-        scoop.write(static_cast<int>(values[1]));
-      }
-      Serial.print(values[0] == 1 ? "SV1," : "SV2,");
-      Serial.println(values[1]);
-    }
-  }
-  commandLength = 0;
+  // Any other command (servo, load cell...) is ignored here.
 }
 
-void readSerialCommands()
+void readCommands()
 {
   while (Serial.available() > 0)
   {
-    const char incoming = static_cast<char>(Serial.read());
-    if (incoming == '\r')
+    const char c = static_cast<char>(Serial.read());
+    if (c == '\r') continue;
+    if (c == '\n')
     {
-      continue;
+      commandBuffer[commandLength] = '\0';
+      if (commandLength > 0) handleCommand(commandBuffer);
+      commandLength = 0;
     }
-    if (incoming == '\n')
+    else if (commandLength < COMMAND_BUFFER_SIZE - 1)
     {
-      if (!commandOverflow)
-      {
-        processCommand();
-      }
-      else
-      {
-        commandLength = 0;
-        commandOverflow = false;
-      }
+      commandBuffer[commandLength++] = c;
     }
-    else if (!commandOverflow)
+    else
     {
-      if (commandLength < COMMAND_BUFFER_SIZE - 1)
-      {
-        commandBuffer[commandLength++] = incoming;
-      }
-      else
-      {
-        commandLength = 0;
-        commandOverflow = true;
-      }
+      commandLength = 0;           // overlong line: discard
     }
   }
 }
 
-void updateManualNirScan()
-{
-  if (!nirScanning || sampleActive || processStage != PROCESS_IDLE ||
-      !nirSensorReady)
-  {
-    return;
-  }
-  const unsigned long now = millis();
-  if (!measurementRunning)
-  {
-    if (static_cast<long>(now - nextMeasurementTime) >= 0)
-    {
-      nirSensor.enableBulb(AS7265x_LED_WHITE);
-      nirSensor.enableBulb(AS7265x_LED_IR);
-      nirSensor.enableBulb(AS7265x_LED_UV);
-      nirSensor.setMeasurementMode(AS7265X_MEASUREMENT_MODE_6CHAN_ONE_SHOT);
-      measurementStartTime = now;
-      measurementRunning = true;
-    }
-  }
-  else if (nirSensor.dataAvailable())
-  {
-    stopNirMeasurement();
-    printNirMeasurement();
-    nextMeasurementTime = millis() + nirScanDelayMs;
-  }
-  else if (now - measurementStartTime >= NIR_MEASUREMENT_TIMEOUT_MS)
-  {
-    stopNirMeasurement();
-    Serial.println("ERROR: NIR measurement timed out.");
-    nextMeasurementTime = millis() + nirScanDelayMs;
-  }
-}
+// ======================= ARDUINO ENTRY POINTS =======================
 
 void setup()
 {
-  Serial.begin(115200);
-  Wire.begin();
-
   pinMode(IR_PIN, INPUT_PULLUP);
-  attachInterrupt(
-    digitalPinToInterrupt(IR_PIN),
-    onIrDetected,
-    FALLING
-  );
-  pinMode(SEPARATOR_MOTOR_PWM_PIN, OUTPUT);
-  analogWrite(SEPARATOR_MOTOR_PWM_PIN, 0);
-  for (uint8_t pin = 0; pin < 4; pin++)
+  Serial.begin(BAUD_RATE);
+
+  stableState  = digitalRead(IR_PIN);
+  lastRawState = stableState;
+  lastChangeTime = millis();
+
+  Serial.println(F("PHENOCOATER_BEAN_COUNTER_READY"));
+
+  if (!connectSensor())
   {
-    pinMode(ROLLER_STEPPER_PINS[pin], OUTPUT);
-    digitalWrite(ROLLER_STEPPER_PINS[pin], LOW);
-  }
-
-  sortGate.attach(SORT_GATE_SERVO_PIN);
-  scoop.attach(SCOOP_SERVO_PIN);
-  sortGate.write(GATE_HOME_ANGLE);
-  scoop.write(SCOOP_RELEASE_ANGLE);
-
-  goodLoadCell.begin(GOOD_HX711_DATA_PIN, GOOD_HX711_CLOCK_PIN);
-  notGoodLoadCell.begin(
-    NOT_GOOD_HX711_DATA_PIN,
-    NOT_GOOD_HX711_CLOCK_PIN
-  );
-  goodLoadCell.set_scale(GOOD_LOAD_CELL_CALIBRATION);
-  notGoodLoadCell.set_scale(NOT_GOOD_LOAD_CELL_CALIBRATION);
-
-  nirSensorReady = nirSensor.begin();
-  Serial.println("PHENOCOATER_BEAN_COUNTER_READY");
-  Serial.print("NIR_STATUS:");
-  Serial.println(nirSensorReady ? "CONNECTED" : "NOT_CONNECTED");
-  if (!nirSensorReady)
-  {
-    Serial.println("ERROR: AS7265X not detected.");
+    Serial.println(F("ERROR: AS7265X not detected. Check SDA/SCL wiring and power."));
   }
 }
 
 void loop()
 {
-  readSerialCommands();
-  updateIrCounter();
-  updateRollerStepper();
-  updateBeanProcess();
-  updateManualNirScan();
-  updateLoadCells();
-
+  readCommands();
+  irUpdate();
+  nirUpdate();
 }

@@ -44,6 +44,7 @@ class FakeDashboard(QWidget):
     arduino_status_changed = Signal(str)
     arduino_connection_changed = Signal(bool)
     ir_sensor_status_changed = Signal(bool)
+    nir_status_changed = Signal(bool)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     bean_data_updated = Signal(object)
@@ -356,6 +357,21 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_ir_detection_event_updates_count_without_count_line(self):
         dashboard = Dashboard()
         dashboard.set_ir_sample_active(True)
+        detection = b"IR_SENSOR_DETECTED\nIR_SENSOR_DETECTED\n"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(detection),
+            read=lambda size: detection,
+        )
+        dashboard.arduino_port = "COM-test"
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(dashboard.total_bean_count, 2)
+        self.assertEqual(dashboard.total_beans_value.text(), "2")
+
+    def test_ir_detection_event_increments_total_without_active_batch(self):
+        dashboard = Dashboard()
         detection = b"IR_SENSOR_DETECTED\n"
         dashboard.arduino_serial = SimpleNamespace(
             is_open=True,
@@ -608,6 +624,9 @@ class HardwareCompatibilityTests(unittest.TestCase):
 
     def test_nir_status_query_reports_connected_and_disconnected_states(self):
         dashboard = Dashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
         dashboard.arduino_port = "COM-test"
         status_data = b"NIR_STATUS:CONNECTED\n"
         dashboard.arduino_serial = SimpleNamespace(
@@ -618,15 +637,91 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
 
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
-        dashboard.update_nir_status()
         self.assertTrue(dashboard.nir_connected)
+        overview = panel.stack.widget(0).widget()
+        self.assertEqual(
+            overview.status_values["NIR Sensor"].text(),
+            "CONNECTED",
+        )
 
         status_data = b"NIR_STATUS:NOT_CONNECTED\n"
         dashboard.arduino_serial.in_waiting = len(status_data)
         dashboard.arduino_serial.read = lambda size: status_data
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
-        dashboard.update_nir_status()
         self.assertFalse(dashboard.nir_connected)
+        self.assertEqual(
+            overview.status_values["NIR Sensor"].text(),
+            "NOT CONNECTED",
+        )
+        panel.deleteLater()
+
+    def test_admin_nir_scan_controls_send_start_and_stop_commands(self):
+        dashboard = Dashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
+        commands = []
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            write=lambda command: commands.append(command),
+        )
+        dashboard.arduino_initialization_complete = True
+
+        panel.nir_page.start_scan_button.click()
+        self.assertEqual(commands, [b"S\n"])
+        self.assertTrue(panel.nir_page.scanning)
+
+        panel.nir_page.stop_scan_button.click()
+        self.assertEqual(commands, [b"S\n", b"P\n"])
+        self.assertFalse(panel.nir_page.scanning)
+        panel.deleteLater()
+
+    def test_nir_scan_status_and_errors_update_admin_controls(self):
+        dashboard = Dashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
+        page = panel.nir_page
+        response = b""
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=0,
+            read=lambda size: response,
+            write=lambda command: None,
+        )
+
+        page.start_scanning()
+        response = b"NIR_SCAN_ERROR:PROCESS_BUSY\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.nir_scanning)
+        self.assertFalse(page.scanning)
+        self.assertTrue(page.start_scan_button.isEnabled())
+        self.assertFalse(page.stop_scan_button.isEnabled())
+
+        page.start_scanning()
+        response = b"NIR_SCAN_STATUS:SCANNING\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.nir_scanning)
+        self.assertTrue(page.scanning)
+        response = b"NIR_SCAN_STATUS:MEASURING\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.nir_scanning)
+        self.assertTrue(page.scanning)
+        response = b"NIR_SCAN_STATUS:WAITING\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertTrue(dashboard.nir_scanning)
+        self.assertTrue(page.scanning)
+        response = b"NIR_SCAN_STATUS:STOPPED\n"
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+        self.assertFalse(dashboard.nir_scanning)
+        self.assertFalse(page.scanning)
+        panel.deleteLater()
 
     def test_unsolicited_arduino_counts_are_ignored_outside_a_batch(self):
         dashboard = Dashboard()
@@ -872,6 +967,94 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(readings[2].value, 2.50)
         self.assertIsNone(readings[1].value)
         self.assertEqual(readings[1].status, "NO DATA")
+
+    def test_admin_nir_analysis_displays_and_plots_firmware_scan_values(self):
+        dashboard = FakeDashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
+        page = panel.nir_page
+        expected_values = [
+            round(index + 0.25, 2)
+            for index in range(len(WAVELENGTHS))
+        ]
+        scan_line = " | ".join(
+            f"{wavelength}nm: {value:.2f}"
+            for wavelength, value in zip(WAVELENGTHS, expected_values)
+        )
+
+        dashboard.nir_message_received.emit(scan_line)
+
+        self.assertEqual(page.table.rowCount(), 1)
+        self.assertEqual(
+            [
+                page.table.horizontalHeaderItem(column).text()
+                for column in range(page.table.columnCount())
+            ],
+            [f"{wavelength}nm" for wavelength in WAVELENGTHS],
+        )
+        self.assertEqual(
+            [
+                page.table.cellWidget(0, column).text()
+                for column in range(page.table.columnCount())
+            ],
+            [f"{value:.2f}" for value in expected_values],
+        )
+        self.assertEqual(page.spectrum_series.count(), len(WAVELENGTHS))
+        self.assertEqual(
+            [
+                (
+                    page.spectrum_series.at(index).x(),
+                    page.spectrum_series.at(index).y(),
+                )
+                for index in range(page.spectrum_series.count())
+            ],
+            list(zip(WAVELENGTHS, expected_values)),
+        )
+        self.assertEqual(page.wavelength_axis.min(), WAVELENGTHS[0])
+        self.assertEqual(page.wavelength_axis.max(), WAVELENGTHS[-1])
+        panel.deleteLater()
+
+    def test_dashboard_forwards_firmware_spectrum_to_admin_nir_analysis(self):
+        dashboard = Dashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
+        values = [float(index + 1) for index in range(len(WAVELENGTHS))]
+        scan_line = " | ".join(
+            f"{wavelength}nm: {value:.2f}"
+            for wavelength, value in zip(WAVELENGTHS, values)
+        )
+        response = f"{scan_line}\n".encode("ascii")
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=len(response),
+            read=lambda size: response,
+            write=lambda command: None,
+            close=lambda: None,
+        )
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        page = panel.nir_page
+        self.assertEqual(page.table.rowCount(), 1)
+        self.assertEqual(
+            [page.table.cellWidget(0, column).text()
+             for column in range(page.table.columnCount())],
+            [f"{value:.2f}" for value in values],
+        )
+        self.assertEqual(
+            [
+                (page.spectrum_series.at(index).x(),
+                 page.spectrum_series.at(index).y())
+                for index in range(page.spectrum_series.count())
+            ],
+            list(zip(WAVELENGTHS, values)),
+        )
+        dashboard.arduino_timer.stop()
+        panel.deleteLater()
+        dashboard.close()
 
     def test_pricing_calculator_matches_weighted_price_formula(self):
         result = PricingSettingsPage.calculate_price(
@@ -1310,6 +1493,20 @@ class HardwareCompatibilityTests(unittest.TestCase):
             "NOT CONNECTED",
         )
         self.assertNotIn("Infrared Sensor", overview.status_values)
+        dashboard.nir_connected = True
+        dashboard.nir_status_changed.emit(True)
+        self.assertEqual(
+            overview.status_values["NIR Sensor"].text(),
+            "CONNECTED",
+        )
+        self.assertEqual(
+            overview.status_values["NIR Sensor"].property(
+                "connection_state"
+            ),
+            "connected",
+        )
+        dashboard.nir_connected = False
+        dashboard.nir_status_changed.emit(False)
         dashboard.arduino_connected = True
         overview.refresh_status()
         dashboard.ir_sensor_connected = True

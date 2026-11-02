@@ -83,6 +83,7 @@ class Dashboard(QWidget):
     arduino_status_changed = Signal(str)
     arduino_connection_changed = Signal(bool)
     ir_sensor_status_changed = Signal(bool)
+    nir_status_changed = Signal(bool)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
@@ -160,7 +161,7 @@ class Dashboard(QWidget):
         self.ir_sample_last_command_at = 0.0
         self.ir_batch_active = False
         self.ir_final_count_expected = False
-        self.nir_detected = False
+        self._set_nir_connected(False)
         self.nir_scanning = False
         self.servo_minimum_angles = {1: 20, 2: 20}
         self.servo_maximum_angles = {1: 160, 2: 160}
@@ -429,9 +430,18 @@ class Dashboard(QWidget):
                         )
                 if message.startswith("NIR_STATUS:"):
                     status = message.partition(":")[2].strip().upper()
-                    self.nir_detected = status == "CONNECTED"
+                    self._set_nir_connected(status == "CONNECTED")
                 elif self.is_nir_message(message):
-                    self.nir_detected = True
+                    self._set_nir_connected(True)
+                elif message.startswith("NIR_SCAN_STATUS:"):
+                    status = message.partition(":")[2].strip().upper()
+                    self.nir_scanning = status in (
+                        "SCANNING",
+                        "WAITING",
+                        "MEASURING",
+                    )
+                elif message.startswith("NIR_SCAN_ERROR:"):
+                    self.nir_scanning = False
         except (serial.SerialException, OSError) as exc:
             self.system_log_received.emit(f"Arduino serial read failed: {exc}")
             self._set_arduino_status(f"Arduino serial read failed: {exc}")
@@ -672,6 +682,7 @@ class Dashboard(QWidget):
         self.ir_sample_command_sent = False
         self.ir_sample_acknowledged = False
         self.ir_power_status_reported = False
+        self._set_nir_connected(False)
         self._set_ir_sensor_connected(False)
         self._clear_current_weight()
 
@@ -681,6 +692,14 @@ class Dashboard(QWidget):
             return
         self.ir_sensor_connected = connected
         self.ir_sensor_status_changed.emit(connected)
+
+    def _set_nir_connected(self, connected):
+        connected = bool(connected)
+        self.nir_detected = connected
+        if self.nir_connected == connected:
+            return
+        self.nir_connected = connected
+        self.nir_status_changed.emit(connected)
 
     @staticmethod
     def parse_object_count(message):
@@ -750,8 +769,6 @@ class Dashboard(QWidget):
         return True
 
     def increment_total_bean_count(self):
-        if not (self.ir_batch_active or self.ir_sample_acknowledged):
-            return False
         self._display_total_bean_count(self.total_bean_count + 1)
         return True
 
@@ -789,7 +806,7 @@ class Dashboard(QWidget):
         return "AS7265X READY" in normalized or wavelength_message
 
     def update_nir_status(self):
-        self.nir_connected = self.nir_detected
+        self._set_nir_connected(self.nir_detected)
 
     @staticmethod
     def is_arduino_port(port):
