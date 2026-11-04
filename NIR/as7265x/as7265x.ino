@@ -1,5 +1,5 @@
 /*
-  PhenoCoater - NIR Scanner + IR Bean Counter
+  PhenoCoater - NIR Scanner + IR Bean Counter + 2 MG90S Servos + 28BYJ-48 Stepper
   Board : Arduino Mega 2560
 
   ---------------------------- WIRING ----------------------------
@@ -17,7 +17,25 @@
     NOTE: the Triad is 3.3 V and the Mega is 5 V. Use a bidirectional
     I2C level shifter (or a Qwiic-style shield) between them.
 
-  All grounds must be common.
+  2x TowerPro MG90S metal gear micro servo (4.8-6 V, about 180 degree travel)
+    Servo 1 signal (orange wire) -> Mega pin 9
+    Servo 2 signal (orange wire) -> Mega pin 10
+    Servo red wire (V+)          -> external 5V supply (+), 2 A or more  [NOT the Mega 5V pin]
+    Servo brown wire (GND)       -> external supply (-)  AND  Mega GND
+    Optional: 470-1000 uF capacitor across the external supply, close to the servos
+
+  28BYJ-48 5V stepper motor + ULN2003 driver board
+    Motor plug (5-pin white connector) -> ULN2003 driver board socket
+    Driver IN1 -> Mega pin 22
+    Driver IN2 -> Mega pin 23
+    Driver IN3 -> Mega pin 24
+    Driver IN4 -> Mega pin 25
+    Driver "+" (power) -> external 5V supply (+)  [same supply as the servos]
+    Driver "-" (power) -> external supply (-)  AND  Mega GND
+    Leave the jumper on the driver board in place. Never connect the motor
+    straight to the Mega pins; the ULN2003 board is required.
+
+  All grounds must be common (Mega, IR sensor, NIR sensor, servo and stepper supply).
   -----------------------------------------------------------------
 
   Library (Arduino IDE > Library Manager):
@@ -39,10 +57,17 @@
                                             one line per NIR scan, all 18 channels
       other status / ERROR lines            shown in the NIR serial monitor
 
+  Servos: both servos sweep 0 -> 90 -> 0 degrees continuously from power-up.
+  Stepper: every time the IR sensor detects an object (counted bean), the
+  28BYJ-48 waits 2 seconds and then rotates one full turn (360 degrees).
+  Objects are only detected while counting is on: press Start System on the
+  dashboard (or send START_SAMPLE from the serial monitor).
+
   Serial baud rate must match Dashboard.arduino_baud_rate in GUI/dashboard.py.
 */
 
 #include <Wire.h>
+#include <Servo.h>
 #include <SparkFun_AS7265X.h>
 #include <math.h>
 #include <stdlib.h>
@@ -57,6 +82,29 @@ const int           DETECTED_STATE    = LOW;       // pin level when a bean is i
 const unsigned long DEBOUNCE_MS       = 40;        // signal must be stable this long to count
 const unsigned long COUNT_COOLDOWN_MS = 1500;      // minimum time between two counted beans
 
+// ---- Servo motors (TowerPro MG90S) ----
+const byte          SERVO1_PIN             = 9;
+const byte          SERVO2_PIN             = 10;
+const int           SERVO_MIN_PULSE_US     = 500;      // pulse width at 0 degrees (raise to about 600 if the servo hums at 0)
+const int           SERVO_MAX_PULSE_US     = 2400;     // pulse width at 180 degrees
+const int           SERVO_MIN_ANGLE        = 0;
+const int           SERVO_MAX_ANGLE        = 90;
+const int           SERVO_STEP_DEGREES     = 1;
+const unsigned long SERVO_STEP_INTERVAL_MS = 15;   // smaller = faster (15 ms x 90 steps = about 1.4 s per sweep)
+
+// ---- Stepper motor (28BYJ-48 + ULN2003 driver) ----
+const byte          STEPPER_IN1_PIN        = 22;
+const byte          STEPPER_IN2_PIN        = 23;
+const byte          STEPPER_IN3_PIN        = 24;
+const byte          STEPPER_IN4_PIN        = 25;
+const bool          STEPPER_CLOCKWISE      = true;     // false = opposite direction
+const unsigned int  STEPPER_RPM            = 10;       // the 28BYJ-48 is slow: above about 15 RPM it starts skipping steps
+const unsigned int  STEPPER_STEPS_PER_REV  = 4076;     // half-steps per full turn of the output shaft (gearbox is about 63.68:1)
+const unsigned long STEPPER_DELAY_AFTER_DETECT_MS = 2000;  // wait this long after an object is detected, then rotate
+const bool          STEPPER_RELEASE_WHEN_IDLE = true;      // true = switch the coils off between turns (stays cool)
+const uint8_t       STEPPER_QUEUE_SIZE     = 20;       // objects waiting for their turn (if detections arrive faster than the motor can turn)
+const unsigned long STEPPER_STEP_INTERVAL_US = 60000000UL / ((unsigned long)STEPPER_STEPS_PER_REV * STEPPER_RPM);
+
 // ---- NIR scanner ----
 const bool    USE_CALIBRATED     = true;           // true: calibrated values, false: raw ADC counts
 const bool    USE_BULB           = true;           // light the sensor's own LEDs during each scan
@@ -70,6 +118,8 @@ const unsigned long MAX_SCAN_DELAY_MS  = 60000;
 // ========================================================
 
 // ======================= IR BEAN COUNTER =======================
+
+void stepperQueueDetection();      // defined in the stepper section below
 
 unsigned long beanCount          = 0;
 bool          sampleActive       = false;
@@ -130,6 +180,8 @@ void irUpdate()
 
       Serial.print(F("BEAN_COUNT: "));
       Serial.println(beanCount);
+
+      stepperQueueDetection();       // the stepper turns once for this object
     }
   }
 
@@ -139,6 +191,157 @@ void irUpdate()
   {
     countCooldownActive = false;
   }
+}
+
+// ======================= SERVO MOTORS =======================
+
+Servo servo1;
+Servo servo2;
+
+int           servoAngle          = SERVO_MIN_ANGLE;
+int           servoDirection      = 1;               // 1 = towards max angle, -1 = towards min angle
+unsigned long lastServoStepTime   = 0;
+
+// Moves both servos one small step every SERVO_STEP_INTERVAL_MS and
+// reverses at each end, so they sweep back and forth without blocking.
+void servoUpdate()
+{
+  const unsigned long now = millis();
+  if (now - lastServoStepTime < SERVO_STEP_INTERVAL_MS) return;
+  lastServoStepTime = now;
+
+  servoAngle += servoDirection * SERVO_STEP_DEGREES;
+
+  if (servoAngle >= SERVO_MAX_ANGLE)
+  {
+    servoAngle = SERVO_MAX_ANGLE;
+    servoDirection = -1;
+  }
+  else if (servoAngle <= SERVO_MIN_ANGLE)
+  {
+    servoAngle = SERVO_MIN_ANGLE;
+    servoDirection = 1;
+  }
+
+  servo1.write(servoAngle);
+  servo2.write(servoAngle);
+}
+
+// ======================= STEPPER MOTOR =======================
+
+const byte STEPPER_PINS[4] = { STEPPER_IN1_PIN, STEPPER_IN2_PIN, STEPPER_IN3_PIN, STEPPER_IN4_PIN };
+
+// Half-step sequence for the 28BYJ-48 (one row per step, columns = IN1..IN4)
+const byte STEPPER_SEQUENCE[8][4] =
+{
+  { 1, 0, 0, 0 },
+  { 1, 1, 0, 0 },
+  { 0, 1, 0, 0 },
+  { 0, 1, 1, 0 },
+  { 0, 0, 1, 0 },
+  { 0, 0, 1, 1 },
+  { 0, 0, 0, 1 },
+  { 1, 0, 0, 1 }
+};
+
+int8_t        stepperPhase        = 0;
+unsigned long lastStepperStepTime = 0;               // in microseconds
+
+// One entry per detected object: the time (millis) it was detected.
+unsigned long stepperQueue[STEPPER_QUEUE_SIZE];
+uint8_t       stepperQueueHead    = 0;
+uint8_t       stepperQueueCount   = 0;
+
+bool          stepperRotating     = false;
+unsigned int  stepperStepsLeft    = 0;
+
+void stepperWritePhase()
+{
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    digitalWrite(STEPPER_PINS[i], STEPPER_SEQUENCE[stepperPhase][i] ? HIGH : LOW);
+  }
+}
+
+void stepperRelease()
+{
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    digitalWrite(STEPPER_PINS[i], LOW);
+  }
+}
+
+// Called by the bean counter each time an object is detected.
+void stepperQueueDetection()
+{
+  if (stepperQueueCount >= STEPPER_QUEUE_SIZE)
+  {
+    Serial.println(F("WARNING: stepper queue full, one turn skipped."));
+    return;
+  }
+
+  const uint8_t tail = (stepperQueueHead + stepperQueueCount) % STEPPER_QUEUE_SIZE;
+  stepperQueue[tail] = millis();
+  stepperQueueCount++;
+}
+
+// Waits STEPPER_DELAY_AFTER_DETECT_MS after each detection, then turns the
+// motor one full revolution. Detections that arrive while the motor is busy
+// wait in the queue and get their own turn. Never blocks the program.
+void stepperUpdate()
+{
+  if (!stepperRotating)
+  {
+    if (stepperQueueCount == 0) return;
+    if (millis() - stepperQueue[stepperQueueHead] < STEPPER_DELAY_AFTER_DETECT_MS) return;
+
+    stepperQueueHead = (stepperQueueHead + 1) % STEPPER_QUEUE_SIZE;
+    stepperQueueCount--;
+
+    stepperStepsLeft = STEPPER_STEPS_PER_REV;
+    stepperRotating = true;
+    lastStepperStepTime = micros();
+    return;
+  }
+
+  const unsigned long now = micros();
+  if (now - lastStepperStepTime < STEPPER_STEP_INTERVAL_US) return;
+  lastStepperStepTime = now;
+
+  if (STEPPER_CLOCKWISE)
+  {
+    stepperPhase++;
+  }
+  else
+  {
+    stepperPhase--;
+  }
+
+  if (stepperPhase > 7)
+  {
+    stepperPhase = 0;
+  }
+  else if (stepperPhase < 0)
+  {
+    stepperPhase = 7;
+  }
+
+  stepperWritePhase();
+  stepperStepsLeft--;
+
+  if (stepperStepsLeft == 0)
+  {
+    stepperRotating = false;
+    if (STEPPER_RELEASE_WHEN_IDLE) stepperRelease();
+  }
+}
+
+// Things that must keep running while the NIR sensor is being read.
+void backgroundUpdate()
+{
+  irUpdate();
+  servoUpdate();
+  stepperUpdate();
 }
 
 // ======================= NIR SCANNER =======================
@@ -216,8 +419,8 @@ void endMeasurement()
   measuring = false;
 }
 
-// Reads one channel, then lets the bean counter check its sensor.
-#define CH(letter) (irUpdate(), (USE_CALIBRATED ? sensor.getCalibrated##letter() : (float)sensor.get##letter()))
+// Reads one channel, then lets the bean counter, servos and stepper keep running.
+#define CH(letter) (backgroundUpdate(), (USE_CALIBRATED ? sensor.getCalibrated##letter() : (float)sensor.get##letter()))
 
 void readChannels(float *v)
 {
@@ -355,7 +558,7 @@ void handleCommand(const char *cmd)
       Serial.println(scanDelayMs);
     }
   }
-  // Any other command (servo, load cell...) is ignored here.
+  // Any other command (GUI servo page, load cell...) is ignored here.
 }
 
 void readCommands()
@@ -388,6 +591,18 @@ void setup()
   pinMode(IR_PIN, INPUT_PULLUP);
   Serial.begin(BAUD_RATE);
 
+  servo1.attach(SERVO1_PIN, SERVO_MIN_PULSE_US, SERVO_MAX_PULSE_US);
+  servo2.attach(SERVO2_PIN, SERVO_MIN_PULSE_US, SERVO_MAX_PULSE_US);
+  servo1.write(servoAngle);
+  servo2.write(servoAngle);
+  lastServoStepTime = millis();
+
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    pinMode(STEPPER_PINS[i], OUTPUT);
+  }
+  stepperRelease();
+
   stableState  = digitalRead(IR_PIN);
   lastRawState = stableState;
   lastChangeTime = millis();
@@ -403,6 +618,6 @@ void setup()
 void loop()
 {
   readCommands();
-  irUpdate();
+  backgroundUpdate();
   nirUpdate();
 }
