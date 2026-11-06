@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from PySide6.QtCore import QPoint, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScroller,
     QSizePolicy,
     QScrollArea,
     QVBoxLayout,
@@ -1549,6 +1550,14 @@ class HardwareCompatibilityTests(unittest.TestCase):
             "Only the Super Admin can create admin accounts.",
         )
         for scroll in panel.admin_scroll_areas:
+            self.assertEqual(
+                scroll.verticalScrollBarPolicy(),
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+            )
+            self.assertNotEqual(
+                QScroller.grabbedGesture(scroll.viewport()),
+                Qt.GestureType(0),
+            )
             self.assertTrue(scroll.autoFillBackground())
             self.assertTrue(scroll.viewport().autoFillBackground())
             self.assertEqual(
@@ -1808,6 +1817,18 @@ class HardwareCompatibilityTests(unittest.TestCase):
     def test_normal_window_starts_on_dashboard_and_denies_admin_routes(self):
         with patch("GUI.main_window.Dashboard", FakeDashboard):
             window = MainWindow()
+
+        for index in range(window.pages.count()):
+            scroll = window.pages.widget(index)
+            self.assertIsInstance(scroll, QScrollArea)
+            self.assertEqual(
+                scroll.verticalScrollBarPolicy(),
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+            )
+            self.assertNotEqual(
+                QScroller.grabbedGesture(scroll.viewport()),
+                Qt.GestureType(0),
+            )
 
         self.assertIsNone(
             window.pricing_page.findChild(QWidget, "pricing_arduino_status")

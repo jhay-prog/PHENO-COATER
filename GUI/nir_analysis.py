@@ -51,7 +51,7 @@ class NIRAnalysisPage(QWidget):
         self.serial_output.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.serial_output.setMinimumHeight(180)
         self.serial_output.setMaximumBlockCount(500)
-        self.serial_output.setStyleSheet("font-size: 12px;")
+        self.serial_output.setStyleSheet("font-size: 18px;")
         self.serial_output.setPlainText(
             "Waiting for AS7265X serial data..."
         )
@@ -90,7 +90,7 @@ class NIRAnalysisPage(QWidget):
         self.wavelength_axis.setTickCount(12)
         self.wavelength_axis.setLabelFormat("%.0f")
         channel_font = QFont()
-        channel_font.setPixelSize(TYPOGRAPHY_SCALE["caption"])
+        channel_font.setPixelSize(round(TYPOGRAPHY_SCALE["caption"] * 1.5))
         self.wavelength_axis.setLabelsFont(channel_font)
         spectrum_chart.addAxis(
             self.wavelength_axis,
@@ -146,17 +146,15 @@ class NIRAnalysisPage(QWidget):
         table.setColumnCount(len(WAVELENGTHS))
         table.setHorizontalHeaderLabels([f"{wavelength}nm" for wavelength in WAVELENGTHS])
         table.setRowCount(0)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setMinimumHeight(180)
-        table.horizontalHeader().setStretchLastSection(False)
         table.horizontalHeader().setSectionsMovable(False)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        for column in range(table.columnCount()):
-            table.setColumnWidth(column, 78)
+        table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         table.verticalHeader().setDefaultSectionSize(34)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(table)
 
         buttons = QHBoxLayout()

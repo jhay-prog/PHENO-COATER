@@ -33,6 +33,7 @@ from .nir_analysis import NIRAnalysisPage
 from .results import ResultsPage
 from .settings import SettingsPage
 from .show_password_checkbox import ShowPasswordCheckBox
+from .touch_scrolling import enable_touch_scrolling
 
 
 class AdminPasswordResetDialog(QDialog):
@@ -196,7 +197,7 @@ class ProcessMonitorPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)
-        title = QLabel("Process Monitor / Debug Logs")
+        title = QLabel("Debug Logs")
         title.setObjectName("page_title")
         description = QLabel(
             "Runtime hardware status and messages received from the connected controller."
@@ -208,7 +209,7 @@ class ProcessMonitorPage(QWidget):
         self.log_output.setObjectName("admin_log_output")
         self.log_output.setReadOnly(True)
         self.log_output.setMaximumBlockCount(1000)
-        self.log_output.setStyleSheet("font-size: 12px;")
+        self.log_output.setStyleSheet("font-size: 18px;")
         layout.addWidget(self.log_output)
         dashboard.system_log_received.connect(self.append_log)
         dashboard.nir_message_received.connect(self.append_log)
@@ -233,7 +234,7 @@ class AdminAccountCreationPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)
-        title = QLabel("Create Admin Account")
+        title = QLabel("Create Admin")
         title.setObjectName("page_title")
         description = QLabel(
             "Create an administrator account using a username and password."
@@ -543,7 +544,7 @@ class AdminControlPanel(QMainWindow):
         self.setObjectName("admin_control_panel")
         self.setWindowTitle("PhenoCoater - Admin Control Panel")
         self.resize(1200, 760)
-        self.setMinimumSize(720, 520)
+        self.setMinimumSize(640, 360)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -559,7 +560,7 @@ class AdminControlPanel(QMainWindow):
         sidebar.setFixedWidth(245)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(8, 14, 8, 12)
-        heading = QLabel("ADMIN CONTROL")
+        heading = QLabel("ADMIN")
         heading.setObjectName("logo_title")
         heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(heading)
@@ -594,7 +595,11 @@ class AdminControlPanel(QMainWindow):
         self.navigation_buttons = []
         self.admin_scroll_areas = []
         for index, name in enumerate(self.SECTION_NAMES):
-            button = QPushButton(name)
+            label = {
+                "Process Monitor / Debug Logs": "Debug Logs",
+                "Create Admin Account": "Create Admin",
+            }.get(name, name)
+            button = QPushButton(label)
             button.setObjectName("admin_navigation_button")
             button.setCheckable(True)
             button.clicked.connect(
@@ -608,6 +613,7 @@ class AdminControlPanel(QMainWindow):
             scroll.setObjectName("admin_page_scroll")
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+            enable_touch_scrolling(scroll)
             scroll.setAutoFillBackground(True)
             scroll.viewport().setAutoFillBackground(True)
             palette = scroll.palette()

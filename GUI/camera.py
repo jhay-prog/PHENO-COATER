@@ -374,7 +374,7 @@ class CameraPage(QWidget):
 
         self.camera_result_label = QLabel("CAMERA RESULT: NO DETECTION")
         self.camera_result_label.setObjectName("camera_result")
-        self.camera_result_label.setStyleSheet("color: #2e7d4f; font-weight: bold; font-size: 16px;")
+        self.camera_result_label.setStyleSheet("color: #2e7d4f; font-weight: bold; font-size: 23px;")
         preview_layout.addWidget(self.camera_result_label)
 
         start_btn.clicked.connect(self.start_camera)
@@ -603,7 +603,7 @@ class CameraPage(QWidget):
 
         toolbar = QHBoxLayout()
         title = QLabel("LIVE CAMERA")
-        title.setStyleSheet("color: white; font-weight: 700; font-size: 15px;")
+        title.setStyleSheet("color: white; font-weight: 700; font-size: 22px;")
         close_button = QPushButton("Exit full view")
         close_button.setObjectName("camera_full_view_close_button")
         close_button.clicked.connect(dialog.reject)

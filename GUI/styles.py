@@ -1353,7 +1353,10 @@ APP_STYLE = re.sub(
 )
 
 APP_STYLE += """
-/* Shared heading levels: h1 = 28px, h2 = 20px, h3 = 16px, body = 14px, caption = 12px. */
+#sidebar[compact="true"] #logo_title {
+    font-size: 16px;
+}
+
 #page_title,
 #bean_sheet_title {
     font-size: 28px;
@@ -1369,3 +1372,11 @@ QLabel#section_title,
     font-size: 20px;
 }
 """
+
+APP_STYLE = re.sub(
+    r"(-?\d+(?:\.\d+)?)px",
+    lambda match: "{}px".format(
+        round(float(match.group(1)) * 1.5)
+    ),
+    APP_STYLE,
+)

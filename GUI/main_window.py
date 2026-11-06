@@ -23,6 +23,8 @@ try:
     from .bean_data_sheet import BeanDataSheetPage
     from .dashboard import Dashboard
     from .pricing import PricingSettingsPage
+    from .touch_scrolling import enable_touch_scrolling
+    from .touch_keyboard import install_touch_keyboard
 except ImportError:
     from admin_login import AdminLoginDialog
     from admin_panel import AdminControlPanel
@@ -31,6 +33,8 @@ except ImportError:
     from bean_data_sheet import BeanDataSheetPage
     from dashboard import Dashboard
     from pricing import PricingSettingsPage
+    from touch_scrolling import enable_touch_scrolling
+    from touch_keyboard import install_touch_keyboard
 
 
 class MainWindow(QMainWindow):
@@ -42,7 +46,7 @@ class MainWindow(QMainWindow):
         self.admin_panel = None
         self.setWindowTitle('PhenoCoater - Cacao Seed Sorting & Grading System')
         self.resize(1400, 850)
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(640, 360)
         self.setup_ui()
         self.dashboard_page.start_system_button.clicked.connect(
             self.dashboard_page.start_system
@@ -53,6 +57,7 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.update_touch_layout()
         if hasattr(self, 'dashboard_page'):
             QTimer.singleShot(0, self.dashboard_page.update_responsive_layout)
 
@@ -67,6 +72,7 @@ class MainWindow(QMainWindow):
 
         sidebar = QWidget()
         sidebar.setObjectName('sidebar')
+        self.sidebar = sidebar
         sidebar.setFixedWidth(230)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(8, 14, 8, 12)
@@ -103,9 +109,9 @@ class MainWindow(QMainWindow):
         self.status_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_text.setStyleSheet("""
             color: #c0392b;
-            font-size: 12px;
+            font-size: 18px;
             font-weight: bold;
-            padding: 4px;
+            padding: 5px;
         """)
         sidebar_layout.addWidget(self.status_text)
 
@@ -117,6 +123,7 @@ class MainWindow(QMainWindow):
 
         header = QWidget()
         header.setObjectName('header')
+        self.header = header
         header.setFixedHeight(70)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 6, 12, 6)
@@ -148,6 +155,7 @@ class MainWindow(QMainWindow):
         dashboard_scroll.setObjectName('dashboard_scroll')
         dashboard_scroll.setWidgetResizable(True)
         dashboard_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        enable_touch_scrolling(dashboard_scroll)
         dashboard_scroll.setWidget(self.dashboard_page)
         self.pages.addWidget(dashboard_scroll)
 
@@ -168,6 +176,7 @@ class MainWindow(QMainWindow):
         pricing_scroll.setObjectName('pricing_scroll')
         pricing_scroll.setWidgetResizable(True)
         pricing_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        enable_touch_scrolling(pricing_scroll)
         pricing_scroll.setWidget(self.pricing_page)
         self.pages.addWidget(pricing_scroll)
 
@@ -182,6 +191,7 @@ class MainWindow(QMainWindow):
         bean_data_sheet_scroll.setObjectName('bean_data_sheet_scroll')
         bean_data_sheet_scroll.setWidgetResizable(True)
         bean_data_sheet_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        enable_touch_scrolling(bean_data_sheet_scroll)
         bean_data_sheet_scroll.setWidget(self.bean_data_sheet_page)
         self.pages.addWidget(bean_data_sheet_scroll)
 
@@ -192,6 +202,17 @@ class MainWindow(QMainWindow):
         self.dashboard_button.clicked.connect(lambda: self.change_page(0))
         self.pricing_button.clicked.connect(lambda: self.change_page(1))
         self.bean_data_sheet_button.clicked.connect(lambda: self.change_page(2))
+        self.update_touch_layout()
+
+    def update_touch_layout(self):
+        if not hasattr(self, 'sidebar'):
+            return
+        compact = self.width() < 1000
+        self.sidebar.setFixedWidth(180 if compact else 230)
+        self.sidebar.setProperty('compact', compact)
+        self.sidebar.style().unpolish(self.sidebar)
+        self.sidebar.style().polish(self.sidebar)
+        self.header.setFixedHeight(58 if self.height() < 600 else 70)
 
     def change_page(self, index):
         if not 0 <= index < self.pages.count():
@@ -235,7 +256,7 @@ class MainWindow(QMainWindow):
             self.admin_panel.logout_requested.connect(self.logout_admin)
         self.admin_panel.activate_admin_view()
         self.hide()
-        self.admin_panel.show()
+        self.admin_panel.showMaximized()
         self.admin_panel.raise_()
         self.admin_panel.activateWindow()
 
@@ -256,9 +277,9 @@ class MainWindow(QMainWindow):
         color = '#2e7d4f' if connected else '#c0392b'
         self.status_text.setStyleSheet(f"""
             color: {color};
-            font-size: 12px;
+            font-size: 18px;
             font-weight: bold;
-            padding: 10px;
+            padding: 12px;
         """)
 
     def create_menu_button(self, label):
@@ -270,8 +291,9 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    install_touch_keyboard(app)
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     return app.exec()
 
 
