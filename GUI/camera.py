@@ -323,7 +323,7 @@ class CameraPage(QWidget):
         self.full_view_timer.timeout.connect(self._render_last_frame)
 
         status_panel = QWidget()
-        status_panel.setObjectName("settings_panel")
+        status_panel.setObjectName("camera_metrics_panel")
         status_layout = QVBoxLayout(status_panel)
         status_layout.setContentsMargins(10, 10, 10, 10)
         status_layout.setSpacing(8)
@@ -339,8 +339,10 @@ class CameraPage(QWidget):
         ]:
             row = QHBoxLayout()
             name = QLabel(label)
+            name.setObjectName("camera_metric_label")
             name.setStyleSheet("color: #6b7280; font-weight: 600;")
             val = QLabel(value)
+            val.setObjectName("camera_metric_value")
             val.setStyleSheet("font-weight: bold;")
             row.addWidget(name)
             row.addStretch()

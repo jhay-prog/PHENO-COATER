@@ -140,6 +140,13 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)
 
+        def add_centered_form_row(form, text, field):
+            label = QLabel(text)
+            label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
+            form.addRow(label, field)
+
         header = QHBoxLayout()
         title_column = QVBoxLayout()
         title_label = QLabel("Settings")
@@ -161,50 +168,60 @@ class SettingsPage(QWidget):
         layout.addLayout(header)
 
         connection_form = QFormLayout()
+        connection_form.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         connection_form.setHorizontalSpacing(10)
         connection_form.setVerticalSpacing(8)
         port_input = QComboBox()
         self.arduino_port_input = port_input
-        connection_form.addRow("Arduino", port_input)
+        add_centered_form_row(connection_form, "Arduino", port_input)
         baud_input = QLineEdit()
         baud_input.setReadOnly(True)
         self.baud_rate_input = baud_input
-        connection_form.addRow("Baud rate", baud_input)
+        add_centered_form_row(connection_form, "Baud rate", baud_input)
         camera_input = QLineEdit()
         camera_input.setReadOnly(True)
         self.camera_source_input = camera_input
-        connection_form.addRow("Camera source", camera_input)
+        add_centered_form_row(connection_form, "Camera source", camera_input)
         scan_delay_input = QLineEdit()
         scan_delay_input.setValidator(QIntValidator(0, 60000, scan_delay_input))
         scan_delay_input.setMaxLength(5)
         scan_delay_input.setText(str(self.saved_nir_scan_delay_ms))
         scan_delay_input.editingFinished.connect(self.commit_nir_scan_delay)
         self.scan_delay_input = scan_delay_input
-        connection_form.addRow("NIR scan delay (ms)", scan_delay_input)
+        add_centered_form_row(
+            connection_form,
+            "NIR scan delay (ms)",
+            scan_delay_input,
+        )
         model_input = QLineEdit()
         model_input.setPlaceholderText(
             "Path to AI folder or .pt model file"
         )
         model_input.setText(self.saved_ai_model_path)
         self.ai_model_path_input = model_input
-        connection_form.addRow("AI model path", model_input)
+        add_centered_form_row(connection_form, "AI model path", model_input)
         connection_panel = QFrame()
         connection_panel.setObjectName("settings_panel")
         connection_panel.setLayout(connection_form)
         layout.addWidget(connection_panel)
 
         sensor_form = QFormLayout()
+        sensor_form.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         sensor_form.setHorizontalSpacing(25)
         sensor_form.setVerticalSpacing(15)
         weight_input = QDoubleSpinBox()
         weight_input.setRange(-1000000, 1000000)
         weight_input.setDecimals(3)
         weight_input.setSuffix(" g")
-        sensor_form.addRow("Load cell offset", weight_input)
+        add_centered_form_row(sensor_form, "Load cell offset", weight_input)
         moisture_input = QDoubleSpinBox()
         moisture_input.setRange(-1000000, 1000000)
         moisture_input.setDecimals(3)
-        sensor_form.addRow("Moisture offset", moisture_input)
+        add_centered_form_row(sensor_form, "Moisture offset", moisture_input)
         sensor_panel = QFrame()
         sensor_panel.setObjectName("settings_panel")
         sensor_panel.setLayout(sensor_form)

@@ -73,14 +73,15 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setObjectName('sidebar')
         self.sidebar = sidebar
-        sidebar.setFixedWidth(230)
+        sidebar.setFixedWidth(340)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(8, 14, 8, 12)
+        sidebar_layout.setContentsMargins(14, 14, 14, 12)
         sidebar_layout.setSpacing(5)
 
         logo_title = QLabel('PHENOCOATER')
         logo_title.setObjectName('logo_title')
         logo_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_title.setWordWrap(True)
         sidebar_layout.addWidget(logo_title)
 
         logo_subtitle = QLabel('Cacao Seed Sorting' + '\n' + '& Grading System')
@@ -124,7 +125,7 @@ class MainWindow(QMainWindow):
         header = QWidget()
         header.setObjectName('header')
         self.header = header
-        header.setFixedHeight(70)
+        header.setFixedHeight(86)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 6, 12, 6)
 
@@ -208,11 +209,11 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'sidebar'):
             return
         compact = self.width() < 1000
-        self.sidebar.setFixedWidth(180 if compact else 230)
+        self.sidebar.setFixedWidth(260 if compact else 340)
         self.sidebar.setProperty('compact', compact)
         self.sidebar.style().unpolish(self.sidebar)
         self.sidebar.style().polish(self.sidebar)
-        self.header.setFixedHeight(58 if self.height() < 600 else 70)
+        self.header.setFixedHeight(74 if self.height() < 600 else 86)
 
     def change_page(self, index):
         if not 0 <= index < self.pages.count():

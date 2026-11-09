@@ -518,6 +518,7 @@ QScrollArea#admin_page_scroll {
 
 #camera_controls_panel QLabel {
     color: #173f2a;
+    font-size: 14px;
 }
 
 #camera_control_section_title {
@@ -533,7 +534,7 @@ QScrollArea#admin_page_scroll {
     border: 1px solid #dce8df;
     border-radius: 5px;
     color: #24643e;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     padding: 3px 6px;
 }
@@ -541,7 +542,7 @@ QScrollArea#admin_page_scroll {
 #camera_controls_panel QPushButton {
     background-color: #e8f0ea;
     color: #173f2a;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     padding: 5px 8px;
     text-align: center;
@@ -563,6 +564,7 @@ QScrollArea#admin_page_scroll {
 
 #camera_controls_panel QComboBox {
     color: #173f2a;
+    font-size: 14px;
 }
 
 #camera_controls_panel QComboBox:disabled {
@@ -573,7 +575,12 @@ QScrollArea#admin_page_scroll {
 #camera_controls_status,
 #camera_control_hint {
     color: #526158;
-    font-size: 11px;
+    font-size: 14px;
+}
+
+#camera_metrics_panel #camera_metric_label,
+#camera_metrics_panel #camera_metric_value {
+    font-size: 14px;
 }
 
 #camera_restore_button {
@@ -705,6 +712,8 @@ QDialog#admin_login_dialog QLineEdit {
     border-radius: 7px;
     background-color: #fbfcfb;
     color: #20392b;
+    font-size: 13px;
+    font-weight: 600;
     selection-background-color: #cfe5d5;
     selection-color: #173f2a;
 }
@@ -874,6 +883,8 @@ QCheckBox#admin_show_password_checkbox {
     background-color: transparent;
     color: #173f2a;
     spacing: 8px;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 QPushButton#create_admin_button {
@@ -1360,6 +1371,76 @@ APP_STYLE += """
 #page_title,
 #bean_sheet_title {
     font-size: 28px;
+}
+
+#admin_sidebar #admin_navigation_button {
+    font-size: 14px;
+}
+
+#nir_analysis_page QLabel,
+#results_page QLabel,
+#settings_page QLabel,
+#admin_account_creation_page QLabel {
+    font-size: 14px;
+}
+
+#nir_analysis_page QLabel#page_title,
+#results_page QLabel#page_title,
+#settings_page QLabel#page_title,
+#admin_account_creation_page QLabel#page_title {
+    font-size: 28px;
+}
+
+#nir_analysis_page QLabel.section_title {
+    font-size: 20px;
+}
+
+#nir_analysis_page QPlainTextEdit,
+#admin_process_monitor_page QPlainTextEdit,
+#nir_table,
+#results_table,
+#settings_page QLineEdit,
+#settings_page QComboBox,
+#settings_page QSpinBox,
+#settings_page QDoubleSpinBox,
+#settings_page QPushButton,
+#admin_account_creation_page QLineEdit,
+#admin_account_creation_page QPushButton,
+#admin_account_creation_page #create_admin_show_password_checkbox,
+QDialog#admin_password_reset_dialog QLabel,
+QDialog#admin_password_reset_dialog QLineEdit,
+QDialog#admin_password_reset_dialog QPushButton,
+QDialog#admin_password_reset_dialog #reset_admin_show_password_checkbox,
+QMessageBox#admin_delete_confirmation_dialog QLabel {
+    font-size: 14px;
+}
+
+#nir_table QHeaderView::section {
+    font-size: 8px;
+    padding: 2px;
+}
+
+#results_table QHeaderView::section {
+    font-size: 14px;
+}
+
+#results_page QLabel#results_summary_label {
+    font-size: 14px;
+}
+
+#admin_account_creation_page #admin_accounts_heading {
+    font-size: 20px;
+}
+
+#admin_account_card #admin_account_username,
+#admin_account_card #admin_account_role,
+#admin_account_creation_page #admin_accounts_empty {
+    font-size: 14px;
+}
+
+#admin_system_overview_page #dashboard_status_name,
+#admin_system_overview_page #dashboard_status_value {
+    font-size: 14px;
 }
 
 QLabel#section_title,

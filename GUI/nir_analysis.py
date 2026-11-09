@@ -51,7 +51,6 @@ class NIRAnalysisPage(QWidget):
         self.serial_output.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.serial_output.setMinimumHeight(180)
         self.serial_output.setMaximumBlockCount(500)
-        self.serial_output.setStyleSheet("font-size: 18px;")
         self.serial_output.setPlainText(
             "Waiting for AS7265X serial data..."
         )
@@ -90,8 +89,9 @@ class NIRAnalysisPage(QWidget):
         self.wavelength_axis.setTickCount(12)
         self.wavelength_axis.setLabelFormat("%.0f")
         channel_font = QFont()
-        channel_font.setPixelSize(round(TYPOGRAPHY_SCALE["caption"] * 1.5))
+        channel_font.setPixelSize(round(TYPOGRAPHY_SCALE["body"] * 1.5))
         self.wavelength_axis.setLabelsFont(channel_font)
+        self.wavelength_axis.setTitleFont(channel_font)
         spectrum_chart.addAxis(
             self.wavelength_axis,
             Qt.AlignmentFlag.AlignBottom,
@@ -103,6 +103,8 @@ class NIRAnalysisPage(QWidget):
         self.intensity_axis.setRange(0, 1)
         self.intensity_axis.setTickCount(6)
         self.intensity_axis.setLabelFormat("%.2f")
+        self.intensity_axis.setLabelsFont(channel_font)
+        self.intensity_axis.setTitleFont(channel_font)
         spectrum_chart.addAxis(self.intensity_axis, Qt.AlignmentFlag.AlignLeft)
         self.spectrum_series.attachAxis(self.intensity_axis)
 
@@ -123,8 +125,8 @@ class NIRAnalysisPage(QWidget):
         summary_title.setProperty("class", "section_title")
         summary.addWidget(summary_title)
         for label, value in [
-            ("Moisture Content", "Not calculated"),
-            ("Quality", "Not classified"),
+            ("Moisture Content", ""),
+            ("Quality", ""),
         ]:
             row = QHBoxLayout()
             name = QLabel(label)
@@ -147,7 +149,7 @@ class NIRAnalysisPage(QWidget):
         table.setHorizontalHeaderLabels([f"{wavelength}nm" for wavelength in WAVELENGTHS])
         table.setRowCount(0)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setMinimumHeight(180)
+        table.setMinimumHeight(360)
         table.horizontalHeader().setSectionsMovable(False)
         table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch

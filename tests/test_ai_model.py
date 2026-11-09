@@ -189,26 +189,26 @@ class AiModelIntegrationTests(unittest.TestCase):
 
         class FakeResult:
             names = {
-                0: "moldy bean",
-                1: "slaty bean",
+                0: "good",
+                1: "moldy bean",
                 2: "GERMINATED BEANS",
                 3: "insect_damaged",
-                4: "black bean",
-                5: "flat_beans",
-                6: "foreign object (rocks, twigs, etc.)",
+                4: "flat_beans",
+                5: "broken",
+                6: "double",
             }
 
             def __init__(self, class_id):
                 self.boxes = [FakeBox(class_id)]
 
         expected_qualities = (
+            "GOOD",
             "MOLDY",
-            "SLATY",
             "GERMINATED",
             "INSECT-DAMAGED",
-            "BLACK",
             "FLAT",
-            "FOREIGN-OBJECT",
+            "BROKEN",
+            "DOUBLE",
         )
         with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
             with patch.object(Dashboard, "update_arduino_status"):
@@ -226,13 +226,13 @@ class AiModelIntegrationTests(unittest.TestCase):
         dashboard.arduino_timer.stop()
         dashboard.close()
 
-    def test_dashboard_maps_legacy_slanty_label_to_slaty(self):
+    def test_dashboard_rejects_categories_outside_supported_list(self):
         class FakeBox:
             conf = [0.9]
             cls = [0]
 
         class FakeResult:
-            names = {0: "slanty"}
+            names = {0: "foreign object"}
             boxes = [FakeBox()]
 
         with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
@@ -241,7 +241,7 @@ class AiModelIntegrationTests(unittest.TestCase):
 
         self.assertEqual(
             dashboard.update_quality_from_ai_result(FakeResult()),
-            "SLATY",
+            "UNDEFINED",
         )
         dashboard.arduino_timer.stop()
         dashboard.close()

@@ -8,7 +8,7 @@ class ShowPasswordCheckBox(QCheckBox):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        indicator_size = 16
+        indicator_size = 20
         indicator_y = (self.height() - indicator_size) // 2
         indicator = QRectF(1, indicator_y, indicator_size, indicator_size)
         painter.setPen(QPen(QColor("#000000"), 1.5))
@@ -17,13 +17,13 @@ class ShowPasswordCheckBox(QCheckBox):
 
         if self.isChecked():
             check = QPainterPath()
-            check.moveTo(indicator.left() + 3.5, indicator.top() + 8)
-            check.lineTo(indicator.left() + 6.5, indicator.top() + 11)
-            check.lineTo(indicator.left() + 12.5, indicator.top() + 5)
+            check.moveTo(indicator.left() + 4.5, indicator.top() + 10)
+            check.lineTo(indicator.left() + 8, indicator.top() + 13.5)
+            check.lineTo(indicator.left() + 15.5, indicator.top() + 6)
             painter.setPen(
                 QPen(
                     QColor("#173f2a"),
-                    2,
+                    2.5,
                     Qt.PenStyle.SolidLine,
                     Qt.PenCapStyle.RoundCap,
                     Qt.PenJoinStyle.RoundJoin,

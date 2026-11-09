@@ -1435,11 +1435,11 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.data_table.item(0, 1).text(), "--")
         page.deleteLater()
 
-    def test_quality_counts_include_foreign_objects_and_germinated_beans_as_defects(self):
+    def test_quality_counts_include_supported_defect_categories(self):
         records = [
-            {"quality": "FOREIGN-OBJECT"},
+            {"quality": "BROKEN"},
             {"quality": "GERMINATED"},
-            {"quality": "SLATY"},
+            {"quality": "DOUBLE"},
         ]
 
         self.assertEqual(
@@ -1447,8 +1447,8 @@ class HardwareCompatibilityTests(unittest.TestCase):
             {
                 "GOOD": 0,
                 "MOLDY": 0,
-                "SLATY": 1,
-                "DEFECTIVE": 2,
+                "SLATY": 0,
+                "DEFECTIVE": 3,
             },
         )
 
