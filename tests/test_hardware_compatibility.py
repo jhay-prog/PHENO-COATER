@@ -34,7 +34,9 @@ from GUI.camera import CameraPage
 from GUI.dashboard import Dashboard
 from GUI.main_window import MainWindow
 from GUI.pricing import PricingSettingsPage
+from GUI.results import ResultsPage
 from GUI.history import get_batch_by_id, get_batches
+from GUI.nir_classifier import FEATURE_NAMES, NIRClassifier
 from GUI.settings import SettingsPage
 from GUI.styles import APP_STYLE
 from NIR.as7265x import AS7265XReader, WAVELENGTHS
@@ -43,6 +45,7 @@ from NIR.as7265x import AS7265XReader, WAVELENGTHS
 class FakeDashboard(QWidget):
     camera_status_changed = Signal(str)
     current_weight_changed = Signal(object)
+    weight_readings_changed = Signal(object, object)
     arduino_status_changed = Signal(str)
     arduino_connection_changed = Signal(bool)
     ir_sensor_status_changed = Signal(bool)
@@ -67,6 +70,9 @@ class FakeDashboard(QWidget):
         self.ir_sensor_connected = False
         self.arduino_status_message = "Arduino not detected."
         self.current_weight_kg = None
+        self.good_weight_grams = None
+        self.not_good_weight_grams = None
+        self.total_bean_count = 0
         self.arduino_serial = None
         self.arduino_baud_rate = 115200
         self.selected_arduino_port = None
@@ -148,6 +154,9 @@ class FakeDashboard(QWidget):
 
     def continue_load_cell_calibration(self):
         self.commands.append(("calibration-continue",))
+
+    def submit_load_cell_calibration_mass(self, command):
+        self.commands.append(("calibration-mass", command))
 
     def set_servo_angle(self, motor, angle):
         self.commands.append(("angle", motor, angle))
@@ -293,6 +302,35 @@ class HardwareCompatibilityTests(unittest.TestCase):
             ),
             0.25,
         )
+
+    def test_unknown_camera_classification_uses_distinct_sort_command(self):
+        dashboard = Dashboard()
+        dashboard.arduino_serial = SimpleNamespace(is_open=True)
+        dashboard.awaiting_bean_classification = True
+        commands = []
+        dashboard.write_arduino_command = (
+            lambda command: commands.append(command) or True
+        )
+
+        self.assertTrue(dashboard._send_bean_sort_command("UNDEFINED"))
+        self.assertEqual(commands, ["SORT_UNDEFINED\n"])
+
+    def test_weight_analysis_table_uses_live_counts_and_sensor_readings(self):
+        dashboard = Dashboard()
+        page = ResultsPage(dashboard)
+
+        dashboard._display_total_bean_count(125)
+        dashboard.update_group_weight_display(1234.5, 65.5)
+
+        self.assertEqual(page.total_seeds_value.text(), "125")
+        self.assertEqual(page.table.rowCount(), 1)
+        self.assertEqual(
+            [page.table.item(0, column).text() for column in range(3)],
+            ["1234.50 g", "65.50 g", "1300.00 g"],
+        )
+
+        dashboard.update_group_weight_display(None, None)
+        self.assertEqual(page.table.rowCount(), 0)
 
     def test_ir_bean_count_messages_update_dashboard_total(self):
         dashboard = Dashboard()
@@ -655,28 +693,16 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         panel.deleteLater()
 
-    def test_admin_nir_scan_controls_send_start_and_stop_commands(self):
+    def test_admin_nir_page_has_no_manual_scan_controls(self):
         dashboard = Dashboard()
         session = AdminSession()
         session.grant_admin()
         panel = AdminControlPanel(dashboard, session)
-        commands = []
-        dashboard.arduino_serial = SimpleNamespace(
-            is_open=True,
-            write=lambda command: commands.append(command),
-        )
-        dashboard.arduino_initialization_complete = True
-
-        panel.nir_page.start_scan_button.click()
-        self.assertEqual(commands, [b"S\n"])
-        self.assertTrue(panel.nir_page.scanning)
-
-        panel.nir_page.stop_scan_button.click()
-        self.assertEqual(commands, [b"S\n", b"P\n"])
-        self.assertFalse(panel.nir_page.scanning)
+        self.assertFalse(hasattr(panel.nir_page, "start_scan_button"))
+        self.assertFalse(hasattr(panel.nir_page, "stop_scan_button"))
         panel.deleteLater()
 
-    def test_nir_scan_status_and_errors_update_admin_controls(self):
+    def test_nir_scan_status_updates_admin_page_automatically(self):
         dashboard = Dashboard()
         session = AdminSession()
         session.grant_admin()
@@ -691,32 +717,12 @@ class HardwareCompatibilityTests(unittest.TestCase):
             write=lambda command: None,
         )
 
-        page.start_scanning()
-        response = b"NIR_SCAN_ERROR:PROCESS_BUSY\n"
-        dashboard.arduino_serial.in_waiting = len(response)
-        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
-        self.assertFalse(dashboard.nir_scanning)
-        self.assertFalse(page.scanning)
-        self.assertTrue(page.start_scan_button.isEnabled())
-        self.assertFalse(page.stop_scan_button.isEnabled())
-
-        page.start_scanning()
-        response = b"NIR_SCAN_STATUS:SCANNING\n"
+        response = b"SCAN_STARTED\n"
         dashboard.arduino_serial.in_waiting = len(response)
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
         self.assertTrue(dashboard.nir_scanning)
         self.assertTrue(page.scanning)
-        response = b"NIR_SCAN_STATUS:MEASURING\n"
-        dashboard.arduino_serial.in_waiting = len(response)
-        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
-        self.assertTrue(dashboard.nir_scanning)
-        self.assertTrue(page.scanning)
-        response = b"NIR_SCAN_STATUS:WAITING\n"
-        dashboard.arduino_serial.in_waiting = len(response)
-        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
-        self.assertTrue(dashboard.nir_scanning)
-        self.assertTrue(page.scanning)
-        response = b"NIR_SCAN_STATUS:STOPPED\n"
+        response = b"SCAN_STOPPED\n"
         dashboard.arduino_serial.in_waiting = len(response)
         dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
         self.assertFalse(dashboard.nir_scanning)
@@ -981,6 +987,86 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertIsNone(readings[1].value)
         self.assertEqual(readings[1].status, "NO DATA")
 
+    def test_nir_classifier_averages_three_scans_in_model_feature_order(self):
+        class FakeModel:
+            feature_names_in_ = FEATURE_NAMES
+            classes_ = ("good", "moldy")
+
+            def predict(self, features):
+                self.features = features
+                return ["moldy"]
+
+            def predict_proba(self, features):
+                return [[0.15, 0.85]]
+
+        model = FakeModel()
+        classifier = NIRClassifier(model)
+        scans = [
+            [float(channel + offset) for channel in range(18)]
+            for offset in (0, 3, 6)
+        ]
+
+        prediction = classifier.predict(scans)
+
+        self.assertEqual(prediction.label, "moldy")
+        self.assertEqual(prediction.confidence, 0.85)
+        self.assertEqual(list(model.features.columns), list(FEATURE_NAMES))
+        self.assertEqual(
+            model.features.iloc[0].tolist(),
+            [float(channel + 3) for channel in range(18)],
+        )
+
+    def test_nir_classifier_rejects_missing_scans_and_channels(self):
+        classifier = NIRClassifier(
+            SimpleNamespace(
+                feature_names_in_=FEATURE_NAMES,
+                classes_=("good", "moldy"),
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "Expected 3 NIR scans"):
+            classifier.predict([[0.5] * 18])
+        with self.assertRaisesRegex(ValueError, "18 measurements"):
+            classifier.predict([[0.5] * 17 for _ in range(3)])
+
+    def test_nir_model_result_gates_camera_good_sort_and_updates_totals(self):
+        class FakeClassifier:
+            @staticmethod
+            def predict(_spectra):
+                return SimpleNamespace(label="moldy", confidence=0.9)
+
+        dashboard = Dashboard()
+        dashboard.nir_classifier = FakeClassifier()
+        dashboard.current_bean_camera_quality = "GOOD"
+        dashboard.good_bean_count = 1
+        commands = []
+        dashboard.arduino_port = "COM-test"
+        dashboard.arduino_serial = SimpleNamespace(
+            is_open=True,
+            in_waiting=0,
+            read=lambda size: b"",
+            write=lambda command: commands.append(command),
+            close=lambda: None,
+        )
+        scan_line = " | ".join(
+            f"{wavelength}nm: {index + 1}.00"
+            for index, wavelength in enumerate(WAVELENGTHS)
+        )
+        messages = ["NIR_CLASSIFICATION_SCANS_STARTED"]
+        for _ in range(3):
+            messages.extend((scan_line, "NIR_SCAN_COMPLETE"))
+        messages.append("NIR_CLASSIFICATION_READY")
+        response = ("\n".join(messages) + "\n").encode("ascii")
+        dashboard.arduino_serial.in_waiting = len(response)
+        dashboard.arduino_serial.read = lambda size: response
+
+        dashboard.read_arduino_messages(SimpleNamespace(device="COM-test"))
+
+        self.assertEqual(commands, [b"NIR_CLASS_NOT_GOOD\n"])
+        self.assertEqual(dashboard.good_bean_count, 0)
+        self.assertEqual(dashboard.not_good_bean_count, 1)
+        dashboard.close()
+
     def test_admin_nir_analysis_displays_and_plots_firmware_scan_values(self):
         dashboard = FakeDashboard()
         session = AdminSession()
@@ -1030,6 +1116,9 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertEqual(page.intensity_axis.max(), 150)
         self.assertEqual(page.intensity_axis.tickCount(), 6)
         self.assertEqual(page.intensity_axis.labelFormat(), "%.0f")
+        page.set_classifier_result("MOLDY", 97.4)
+        self.assertEqual(page.nir_classification_value.text(), "MOLDY")
+        self.assertEqual(page.nir_confidence_value.text(), "97.4%")
         self.assertEqual(
             page.findChild(QWidget, "nir_spectrum_chart").minimumHeight(),
             450,
@@ -1373,6 +1462,17 @@ class HardwareCompatibilityTests(unittest.TestCase):
         page.update_calibration_prompt("Send C to tare.")
         self.assertFalse(page.calibration_prompt_label.isHidden())
         self.assertFalse(page.calibration_continue_button.isHidden())
+
+        submitted = []
+        page.calibration_mass_requested.connect(submitted.append)
+        page.update_calibration_prompt(
+            "LOAD CELL 1 CALIBRATION: Place a known weight on Load Cell 1 and enter grams."
+        )
+        self.assertFalse(page.calibration_mass_input.isHidden())
+        self.assertTrue(page.calibration_continue_button.isEnabled())
+        page.calibration_mass_input.setValue(250.0)
+        page.calibration_continue_button.click()
+        self.assertEqual(submitted, ["K1,250.00"])
         page.deleteLater()
 
     def test_bean_data_current_summary_values_start_blank(self):

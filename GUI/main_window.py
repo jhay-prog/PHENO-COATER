@@ -173,6 +173,9 @@ class MainWindow(QMainWindow):
         self.pricing_page.calibration_continue_requested.connect(
             self.dashboard_page.continue_load_cell_calibration
         )
+        self.pricing_page.calibration_mass_requested.connect(
+            self.dashboard_page.submit_load_cell_calibration_mass
+        )
         pricing_scroll = QScrollArea()
         pricing_scroll.setObjectName('pricing_scroll')
         pricing_scroll.setWidgetResizable(True)

@@ -28,7 +28,7 @@ access, so protect the account and its profile.
 
 Standard users have access to the normal dashboard and Pricing Settings without
 an administrator login. Camera inspection, NIR analysis/scanning, servo
-controls, inspection results, and system settings are available only in the
+controls, Weight Analysis, and system settings are available only in the
 authenticated Admin Control Panel. Logout returns to the dashboard and revokes
 the in-memory administrator session; it does not close the shared camera or
 Arduino connections.
@@ -36,15 +36,15 @@ Arduino connections.
 Pricing Settings calculates weighted moisture/PNS scores and the total batch
 price automatically from the entered base price and scores, the two effect
 percentages (which always total 100%), and a batch weight in kilograms. Live
-load-cell readings and automatically scored moisture/PNS values are not
-currently available. The score fields remain manual, and the batch-weight
-field is a clearly labeled 1 kg test input until hardware support is added.
+dual load-cell readings are available after both cells have been calibrated.
+Moisture/PNS scores remain manual.
 
 The Admin Control Panel shares the existing dashboard hardware controller.
-Camera preview and AS7265X serial data are reused rather than opening another
-camera or serial port. Readings that are not received or calculated are shown as
-unavailable; a missing load cell, classification model, or moisture-calibration
-algorithm is not represented by made-up measurements.
+The Mega runs `NIR/mega_controller/mega_controller.ino`; the Nano runs
+`NIR/nano_scanner/nano_scanner.ino` and forwards AS7265X spectra to the Mega
+over Serial1. The dashboard's existing camera stream supplies each bean's
+classification. See [ARDUINO_SETUP.md](./ARDUINO_SETUP.md) for pin assignments,
+upload steps, and the required load-cell calibration.
 
 To enable live AI detections, open **System Settings**, enter the path to the
 folder containing the model weights (for example, the `PHENO AI` folder with
@@ -54,6 +54,15 @@ detections appear on the main dashboard's **Live Camera**, and the selected
 model path is remembered for later launches. If a folder contains multiple
 `.pt` files, use the full path to the intended model file. An invalid or
 unloadable model is reported in System Settings and the admin process log.
+
+NIR bean classification uses the bundled
+`NIR/models/svm_lda_nir_model.pkl`; it averages three AS7265X scans and displays
+the predicted class and confidence on **NIR Analysis**. The NIR model recognizes
+`good`, `moldy`, `slaty`, and `void`. A bean is sent to the good platform only
+when both the camera and NIR model say good; if the NIR model cannot run, the
+system reports the problem and uses the camera result. The model was saved with
+scikit-learn 1.6.1, so a runtime version mismatch is reported and should be
+validated against known samples before use.
 
 ## Tests
 

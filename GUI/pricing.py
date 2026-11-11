@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QDoubleSpinBox,
     QLineEdit,
     QPushButton,
     QSlider,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
 
 class PricingSettingsPage(QWidget):
     calibration_continue_requested = Signal()
+    calibration_mass_requested = Signal(str)
 
     def __init__(self, permission_check=None):
         super().__init__()
@@ -269,6 +271,16 @@ class PricingSettingsPage(QWidget):
             self._request_calibration_continue
         )
         result_layout.addWidget(self.calibration_continue_button)
+        self.calibration_mass_input = QDoubleSpinBox()
+        self.calibration_mass_input.setObjectName(
+            "pricing_calibration_mass_input"
+        )
+        self.calibration_mass_input.setRange(0.1, 100000.0)
+        self.calibration_mass_input.setDecimals(2)
+        self.calibration_mass_input.setSuffix(" g")
+        self.calibration_mass_input.setValue(100.0)
+        self.calibration_mass_input.setVisible(False)
+        result_layout.addWidget(self.calibration_mass_input)
 
         value_form = QFormLayout()
         value_form.setHorizontalSpacing(18)
@@ -584,11 +596,39 @@ class PricingSettingsPage(QWidget):
             return
         self.calibration_prompt_label.setText(message)
         self.calibration_prompt_label.setVisible(True)
-        can_continue = normalized.startswith("send c")
+        self._calibration_cell = (
+            1 if "load cell 1" in normalized else
+            2 if "load cell 2" in normalized else
+            None
+        )
+        needs_reference_weight = "place a known" in normalized
+        can_continue = needs_reference_weight or "send c" in normalized
+        self.calibration_mass_input.setVisible(needs_reference_weight)
         self.calibration_continue_button.setEnabled(can_continue)
         self.calibration_continue_button.setVisible(can_continue)
+        self.calibration_continue_button.setText(
+            "Submit known weight"
+            if needs_reference_weight
+            else "Continue calibration"
+        )
 
     def _request_calibration_continue(self):
+        if not self.calibration_mass_input.isHidden():
+            if self._calibration_cell not in (1, 2):
+                raise ValueError(
+                    "Calibration prompt is missing a load-cell number."
+                )
+            self.calibration_mass_requested.emit(
+                f"K{self._calibration_cell},"
+                f"{self.calibration_mass_input.value():.2f}"
+            )
+            self.calibration_continue_button.setEnabled(False)
+            self.calibration_continue_button.setVisible(False)
+            self.calibration_mass_input.setVisible(False)
+            self.calibration_prompt_label.setText(
+                "Calibration weight submitted; waiting for Arduino..."
+            )
+            return
         self.calibration_continue_button.setEnabled(False)
         self.calibration_continue_button.setVisible(False)
         self.calibration_prompt_label.setText(

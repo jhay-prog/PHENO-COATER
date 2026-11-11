@@ -41,6 +41,12 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtMultimedia import QMediaDevices
 from .animated_button import AnimatedButton
+from .nir_classifier import (
+    SCANS_PER_BEAN,
+    default_nir_model_path,
+    load_nir_classifier,
+)
+from NIR.as7265x import AS7265XReader
 
 
 AI_CONFIDENCE_THRESHOLD = 0.5
@@ -80,10 +86,12 @@ class Dashboard(QWidget):
     camera_status_changed = Signal(str)
     camera_controls_status_changed = Signal(str)
     current_weight_changed = Signal(object)
+    weight_readings_changed = Signal(object, object)
     arduino_status_changed = Signal(str)
     arduino_connection_changed = Signal(bool)
     ir_sensor_status_changed = Signal(bool)
     nir_status_changed = Signal(bool)
+    nir_classification_changed = Signal(str, float)
     system_log_received = Signal(str)
     nir_message_received = Signal(str)
     servo_status_received = Signal(int, int)
@@ -114,6 +122,14 @@ class Dashboard(QWidget):
         self.ai_model = None
         self.ai_model_path = get_configured_ai_model_path()
         self.ai_model_error = ""
+        self.nir_classifier = None
+        self.nir_model_path = str(default_nir_model_path())
+        self.nir_model_error = ""
+        self.nir_model_warning = ""
+        self.nir_sample_spectra = []
+        self.nir_pending_spectrum = None
+        self.collecting_nir_scans = False
+        self.current_bean_camera_quality = None
         self.ai_inference_pool = QThreadPool(self)
         self.ai_inference_pool.setMaxThreadCount(1)
         self.ai_inference_busy = False
@@ -180,6 +196,7 @@ class Dashboard(QWidget):
         }
 
         self.setup_ui()
+        self.set_nir_model_path(self.nir_model_path, log_result=False)
         if self.ai_model_path:
             self.set_ai_model_path(self.ai_model_path, log_result=False)
         self.update_camera_status("Camera is Off")
@@ -335,6 +352,10 @@ class Dashboard(QWidget):
             for line in lines:
                 message = line.strip()
                 if message:
+                    if self.collecting_nir_scans and "nm:" in message:
+                        self.nir_pending_spectrum = self._parse_nir_spectrum(
+                            message
+                        )
                     if (
                         message == "PHENOCOATER_BEAN_COUNTER_READY"
                         or message in ("SAMPLE_STARTED", "SAMPLE_COMPLETE")
@@ -355,11 +376,44 @@ class Dashboard(QWidget):
                     elif message == "SAMPLE_STARTED":
                         self.ir_sample_acknowledged = True
                         self.ir_sample_command_sent = True
+                    if message == "NIR_CLASSIFICATION_SCANS_STARTED":
+                        self.nir_sample_spectra = []
+                        self.nir_pending_spectrum = None
+                        self.collecting_nir_scans = True
+                    elif message == "NIR_SCAN_COMPLETE":
+                        if self.collecting_nir_scans:
+                            if self.nir_pending_spectrum is None:
+                                self.system_log_received.emit(
+                                    "NIR scan completed without 18 valid "
+                                    "wavelength readings."
+                                )
+                            else:
+                                self.nir_sample_spectra.append(
+                                    self.nir_pending_spectrum
+                                )
+                            self.nir_pending_spectrum = None
+                    elif message == "NIR_CLASSIFICATION_READY":
+                        if self.collecting_nir_scans:
+                            self.collecting_nir_scans = False
+                            self._classify_nir_sample()
+                    elif message == "NIR_CLASSIFICATION_ABORTED":
+                        self.collecting_nir_scans = False
+                        self.nir_sample_spectra = []
+                        self.nir_pending_spectrum = None
+                        self.nir_classification_changed.emit(
+                            "UNAVAILABLE",
+                            0.0,
+                        )
+                        self.system_log_received.emit(
+                            "NIR scan sequence timed out; using the camera "
+                            "classification."
+                        )
                     if message == "BEAN_ROTATION_STARTED":
                         self.bean_rotation_active = True
                         self.awaiting_bean_classification = False
                         self.best_rotation_quality = None
                         self.best_rotation_confidence = -1.0
+                        self.current_bean_camera_quality = None
                     elif message == "BEAN_READY_FOR_CLASSIFICATION":
                         self.bean_rotation_active = False
                         self.awaiting_bean_classification = True
@@ -439,6 +493,10 @@ class Dashboard(QWidget):
                         "WAITING",
                         "MEASURING",
                     )
+                elif message == "SCAN_STARTED":
+                    self.nir_scanning = True
+                elif message == "SCAN_STOPPED":
+                    self.nir_scanning = False
                 elif message.startswith("NIR_SCAN_ERROR:"):
                     self.nir_scanning = False
         except (serial.SerialException, OSError) as exc:
@@ -472,6 +530,9 @@ class Dashboard(QWidget):
         else:
             self.ir_sample_acknowledged = False
             self.ir_final_count_expected = self.ir_batch_active
+            self.collecting_nir_scans = False
+            self.nir_sample_spectra = []
+            self.nir_pending_spectrum = None
             self.ir_batch_active = False
         if (
             self.arduino_serial is None
@@ -545,6 +606,19 @@ class Dashboard(QWidget):
             )
             return
         self.write_arduino_command("C\n")
+
+    def submit_load_cell_calibration_mass(self, command):
+        if not isinstance(command, str) or not re.fullmatch(
+            r"K[12],(?:\d+(?:\.\d*)?|\.\d+)",
+            command,
+        ):
+            raise ValueError("Invalid load-cell calibration weight command.")
+        if self.arduino_serial is None or not self.arduino_serial.is_open:
+            self.system_log_received.emit(
+                "Cannot calibrate load cell: Arduino serial connection is unavailable."
+            )
+            return
+        self.write_arduino_command(f"{command}\n")
 
     def set_servo_angle(self, motor, angle):
         if motor not in (1, 2):
@@ -707,6 +781,10 @@ class Dashboard(QWidget):
         good_weight_grams,
         not_good_weight_grams,
     ):
+        self.weight_readings_changed.emit(
+            good_weight_grams,
+            not_good_weight_grams,
+        )
         if good_weight_grams is None or not_good_weight_grams is None:
             self.batch_weight_value.setText("0")
             return
@@ -1258,9 +1336,15 @@ class Dashboard(QWidget):
             return False
 
         is_good = quality == "GOOD"
-        command = "SORT_GOOD\n" if is_good else "SORT_NOT_GOOD\n"
+        if is_good:
+            command = "SORT_GOOD\n"
+        elif quality == "UNDEFINED":
+            command = "SORT_UNDEFINED\n"
+        else:
+            command = "SORT_NOT_GOOD\n"
         if not self.write_arduino_command(command):
             return False
+        self.current_bean_camera_quality = quality
         self.bean_classification_timer.stop()
         self.awaiting_bean_classification = False
         if is_good:
@@ -1269,6 +1353,78 @@ class Dashboard(QWidget):
             self.not_good_bean_count += 1
         self.update_quality_totals_display()
         return True
+
+    @staticmethod
+    def _parse_nir_spectrum(line):
+        readings = AS7265XReader.parse_line(line)
+        if len(readings) != 18 or any(
+            reading.value is None or not isfinite(reading.value)
+            for reading in readings
+        ):
+            return None
+        return [reading.value for reading in readings]
+
+    def _classify_nir_sample(self):
+        spectra = self.nir_sample_spectra
+        self.nir_sample_spectra = []
+        self.nir_pending_spectrum = None
+        if self.nir_classifier is None:
+            error = self.nir_model_error or "NIR model is not loaded."
+            self.system_log_received.emit(
+                f"NIR classification unavailable: {error} "
+                "Using the camera classification."
+            )
+            self.nir_classification_changed.emit("UNAVAILABLE", 0.0)
+            command = "NIR_CLASS_UNAVAILABLE\n"
+        elif len(spectra) != SCANS_PER_BEAN:
+            self.system_log_received.emit(
+                "NIR classification unavailable: expected "
+                f"{SCANS_PER_BEAN} valid scans, received "
+                f"{len(spectra)}. Using the camera "
+                "classification."
+            )
+            self.nir_classification_changed.emit("UNAVAILABLE", 0.0)
+            command = "NIR_CLASS_UNAVAILABLE\n"
+        else:
+            try:
+                prediction = self.nir_classifier.predict(
+                    spectra
+                )
+            except Exception as exc:
+                self.system_log_received.emit(
+                    f"NIR classification failed: {exc}. "
+                    "Using the camera classification."
+                )
+                self.nir_classification_changed.emit("UNAVAILABLE", 0.0)
+                command = "NIR_CLASS_UNAVAILABLE\n"
+            else:
+                is_good = prediction.label.strip().casefold() == "good"
+                command = (
+                    "NIR_CLASS_GOOD\n"
+                    if is_good
+                    else "NIR_CLASS_NOT_GOOD\n"
+                )
+                self.nir_classification_changed.emit(
+                    prediction.label.upper(),
+                    prediction.confidence * 100.0,
+                )
+                self.system_log_received.emit(
+                    f"NIR AI classified bean as {prediction.label.upper()} "
+                    f"({prediction.confidence * 100.0:.1f}% confidence)."
+                )
+
+        if not self.write_arduino_command(command):
+            self.system_log_received.emit(
+                "NIR classification result was not sent to the Arduino."
+            )
+            return
+        if (
+            command == "NIR_CLASS_NOT_GOOD\n"
+            and self.current_bean_camera_quality == "GOOD"
+        ):
+            self.good_bean_count = max(0, self.good_bean_count - 1)
+            self.not_good_bean_count += 1
+            self.update_quality_totals_display()
 
     def _reject_unclassified_bean(self):
         if not self.awaiting_bean_classification:
@@ -1307,6 +1463,53 @@ class Dashboard(QWidget):
             self.system_log_received.emit(
                 f"AI model loaded from {model_file}."
             )
+        return True
+
+    def set_nir_model_path(self, model_path, log_result=True):
+        model_path = str(model_path or "").strip()
+        try:
+            classifier, model_file = load_nir_classifier(model_path)
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.nir_classifier = None
+            self.nir_model_path = model_path
+            self.nir_model_error = str(exc)
+            self.nir_model_warning = ""
+            if log_result:
+                self.system_log_received.emit(self.nir_model_error)
+            return False
+
+        self.nir_classifier = classifier
+        self.nir_model_path = str(model_file)
+        self.nir_model_error = ""
+        compatibility_warning = None
+        other_warnings = []
+        for warning in classifier.load_warnings:
+            versions = re.search(
+                r"from version (\d+(?:\.\d+)*) when using version "
+                r"(\d+(?:\.\d+)*)",
+                warning,
+            )
+            if versions and compatibility_warning is None:
+                compatibility_warning = (
+                    "Model was saved with scikit-learn "
+                    f"{versions.group(1)} but is running with "
+                    f"{versions.group(2)}; validate predictions before use."
+                )
+            elif not versions:
+                other_warnings.append(warning)
+        self.nir_model_warning = "; ".join(
+            ([compatibility_warning] if compatibility_warning else [])
+            + other_warnings
+        )
+        if log_result:
+            self.system_log_received.emit(
+                f"NIR AI model loaded from {model_file}."
+            )
+            if self.nir_model_warning:
+                self.system_log_received.emit(
+                    f"NIR AI model compatibility warning: "
+                    f"{self.nir_model_warning}"
+                )
         return True
 
     def render_camera_frame(self, frame):

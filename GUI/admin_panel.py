@@ -142,6 +142,7 @@ class SystemOverviewPage(QWidget):
             "Camera",
             "Arduino",
             "NIR Sensor",
+            "NIR AI Model",
             "Load Cell",
             "AI Model",
         ):
@@ -169,6 +170,11 @@ class SystemOverviewPage(QWidget):
             "Camera": self.dashboard.camera_connected,
             "Arduino": self.dashboard.arduino_connected,
             "NIR Sensor": self.dashboard.nir_connected,
+            "NIR AI Model": getattr(
+                self.dashboard,
+                "nir_classifier",
+                None,
+            ) is not None,
             "Load Cell": getattr(
                 self.dashboard,
                 "current_weight_kg",
@@ -178,8 +184,14 @@ class SystemOverviewPage(QWidget):
         }
         for name, connected in states.items():
             value = self.status_values[name]
-            if name == "AI Model":
+            if name in ("AI Model", "NIR AI Model"):
                 status_text = "READY" if connected else "NOT READY"
+                if (
+                    name == "NIR AI Model"
+                    and connected
+                    and getattr(self.dashboard, "nir_model_warning", "")
+                ):
+                    status_text = "READY (CHECK VERSION)"
             else:
                 status_text = "CONNECTED" if connected else "NOT CONNECTED"
             value.setText(status_text)
@@ -571,7 +583,16 @@ class AdminControlPanel(QMainWindow):
         self.stack.setObjectName("admin_pages")
         self.camera_page = CameraPage(camera_controller=self.dashboard)
         self.nir_page = NIRAnalysisPage()
-        self.results_page = ResultsPage()
+        self.nir_page.set_classifier_result(
+            (
+                "MODEL READY WITH WARNING"
+                if getattr(self.dashboard, "nir_model_warning", "")
+                else "MODEL READY"
+            )
+            if getattr(self.dashboard, "nir_classifier", None) is not None
+            else "UNAVAILABLE"
+        )
+        self.results_page = ResultsPage(self.dashboard)
         self.settings_page = SettingsPage(
             self.dashboard,
             permission_check=lambda: self.session.is_admin,
@@ -593,7 +614,27 @@ class AdminControlPanel(QMainWindow):
         self.dashboard.nir_message_received.connect(
             self.nir_page.append_serial_line
         )
-        self.nir_page.scan_requested.connect(self._set_nir_scanning)
+        nir_classification_signal = getattr(
+            self.dashboard,
+            "nir_classification_changed",
+            None,
+        )
+        if nir_classification_signal is not None:
+            nir_classification_signal.connect(
+                self.nir_page.set_classifier_result
+            )
+        nir_model_error = getattr(self.dashboard, "nir_model_error", "")
+        if nir_model_error:
+            self.dashboard.system_log_received.emit(nir_model_error)
+        nir_model_warning = getattr(
+            self.dashboard,
+            "nir_model_warning",
+            "",
+        )
+        if nir_model_warning:
+            self.dashboard.system_log_received.emit(
+                f"NIR AI model compatibility warning: {nir_model_warning}"
+            )
 
         self.navigation_buttons = []
         self.admin_scroll_areas = []
@@ -657,7 +698,9 @@ class AdminControlPanel(QMainWindow):
         self.dashboard.set_camera_usage_button(
             self.settings_page.camera_usage_button
         )
-        self.nir_page.set_scanning_state(self.dashboard.nir_scanning)
+        self.nir_page.set_scanning_state(
+            getattr(self.dashboard, "nir_scanning", False)
+        )
 
     def _update_admin_management_access(self):
         can_manage_accounts = self.session.can_create_admin_accounts()
@@ -697,10 +740,6 @@ class AdminControlPanel(QMainWindow):
             self.logout_requested.emit()
             return False
         return True
-
-    def _set_nir_scanning(self, enabled):
-        if self._authorize():
-            self.dashboard.set_nir_scanning(enabled)
 
     def closeEvent(self, event):
         self.logout_requested.emit()

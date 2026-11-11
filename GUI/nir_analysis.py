@@ -1,4 +1,4 @@
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 from PySide6.QtWidgets import (
@@ -10,14 +10,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from .animated_button import AnimatedButton
 from .styles import TYPOGRAPHY_SCALE
 from NIR.as7265x import AS7265XReader, NIRReading, WAVELENGTHS
 
 
 class NIRAnalysisPage(QWidget):
-    scan_requested = Signal(bool)
-
     def __init__(self):
         super().__init__()
         self.setObjectName("nir_analysis_page")
@@ -25,6 +22,8 @@ class NIRAnalysisPage(QWidget):
         self.readings = [NIRReading(wavelength, None) for wavelength in WAVELENGTHS]
         self.received_serial_data = False
         self.scanning = False
+        self.nir_classification_value = None
+        self.nir_confidence_value = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -127,6 +126,8 @@ class NIRAnalysisPage(QWidget):
         for label, value in [
             ("Moisture Content", ""),
             ("Quality", ""),
+            ("NIR AI Result", "Model unavailable"),
+            ("NIR AI Confidence", "--"),
         ]:
             row = QHBoxLayout()
             name = QLabel(label)
@@ -137,6 +138,10 @@ class NIRAnalysisPage(QWidget):
             row.addStretch()
             row.addWidget(val)
             summary.addLayout(row)
+            if label == "NIR AI Result":
+                self.nir_classification_value = val
+            elif label == "NIR AI Confidence":
+                self.nir_confidence_value = val
         summary.addStretch()
         top.addWidget(summary_panel, 1)
         layout.addLayout(top)
@@ -159,38 +164,24 @@ class NIRAnalysisPage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(table)
 
-        buttons = QHBoxLayout()
-        buttons.addStretch()
-        scan_btn = AnimatedButton("START SCAN")
-        scan_btn.setObjectName("settings_save_button")
-        self.start_scan_button = scan_btn
-        stop_btn = AnimatedButton("STOP SCANNING")
-        stop_btn.setObjectName("settings_reset_button")
-        self.stop_scan_button = stop_btn
-        self.stop_scan_button.setEnabled(False)
-        scan_btn.clicked.connect(self.start_scanning)
-        stop_btn.clicked.connect(self.stop_scanning)
-        buttons.addWidget(scan_btn)
-        buttons.addWidget(stop_btn)
-        layout.addLayout(buttons)
         layout.addStretch()
 
-    def start_scanning(self):
-        if self.scanning:
+    def set_classifier_result(self, label, confidence=None):
+        if confidence is None or label == "UNAVAILABLE":
+            if label == "MODEL READY":
+                value = "Model ready"
+            elif label == "MODEL READY WITH WARNING":
+                value = "Ready; check model version"
+            else:
+                value = "Unavailable"
+            self.nir_classification_value.setText(value)
+            self.nir_confidence_value.setText("--")
             return
-        self.set_scanning_state(True)
-        self.scan_requested.emit(True)
-
-    def stop_scanning(self):
-        if not self.scanning:
-            return
-        self.set_scanning_state(False)
-        self.scan_requested.emit(False)
+        self.nir_classification_value.setText(label)
+        self.nir_confidence_value.setText(f"{confidence:.1f}%")
 
     def set_scanning_state(self, enabled):
-        self.scanning = enabled
-        self.start_scan_button.setEnabled(not enabled)
-        self.stop_scan_button.setEnabled(enabled)
+        self.scanning = bool(enabled)
 
     def append_serial_line(self, line):
         if not line:
@@ -200,6 +191,10 @@ class NIRAnalysisPage(QWidget):
             self.set_scanning_state(
                 status in ("SCANNING", "WAITING", "MEASURING")
             )
+        elif line == "SCAN_STARTED":
+            self.set_scanning_state(True)
+        elif line == "SCAN_STOPPED":
+            self.set_scanning_state(False)
         elif line.startswith("NIR_SCAN_ERROR:"):
             self.set_scanning_state(False)
         if not self.received_serial_data:

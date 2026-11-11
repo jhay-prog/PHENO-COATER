@@ -1,12 +1,31 @@
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QFrame, QHeaderView, QTableWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QFrame,
+    QHeaderView,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from .animated_button import AnimatedButton
 
 
 class ResultsPage(QWidget):
-    def __init__(self):
+    def __init__(self, dashboard):
         super().__init__()
         self.setObjectName("results_page")
+        dashboard.weight_readings_changed.connect(self.update_weights)
+        dashboard.bean_data_updated.connect(self.update_bean_count)
         self.setup_ui()
+        self.update_bean_count(
+            {"bean_count": dashboard.total_bean_count}
+        )
+        self.update_weights(
+            dashboard.good_weight_grams,
+            dashboard.not_good_weight_grams,
+        )
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -41,24 +60,26 @@ class ResultsPage(QWidget):
             card_layout.addWidget(name)
             card_layout.addWidget(value_label)
             summary_cards.addWidget(card, index // 2, index % 2)
+            if label == "Total seeds":
+                self.total_seeds_value = value_label
         layout.addLayout(summary_cards)
 
-        table = QTableWidget()
-        table.setObjectName("results_table")
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels([
+        self.table = QTableWidget()
+        self.table.setObjectName("results_table")
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels([
             "Weight Good Beans (Load cell 1)",
             "Weight Bad Beans (Load cell 2)",
             "Total Weight",
         ])
-        table.setRowCount(0)
-        table.setMinimumHeight(220)
-        table.horizontalHeader().setSectionsMovable(False)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        table.verticalHeader().setDefaultSectionSize(34)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        layout.addWidget(table)
+        self.table.setRowCount(0)
+        self.table.setMinimumHeight(220)
+        self.table.horizontalHeader().setSectionsMovable(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.table.verticalHeader().setDefaultSectionSize(34)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
 
         actions = QHBoxLayout()
         actions.addStretch()
@@ -70,3 +91,23 @@ class ResultsPage(QWidget):
         actions.addWidget(export_btn)
         layout.addLayout(actions)
         layout.addStretch()
+
+    def update_bean_count(self, bean_data):
+        self.total_seeds_value.setText(f"{bean_data['bean_count']:,}")
+
+    def update_weights(self, good_weight_grams, bad_weight_grams):
+        if good_weight_grams is None or bad_weight_grams is None:
+            self.table.setRowCount(0)
+            return
+        self.table.setRowCount(1)
+        values = (
+            good_weight_grams,
+            bad_weight_grams,
+            good_weight_grams + bad_weight_grams,
+        )
+        for column, value in enumerate(values):
+            self.table.setItem(
+                0,
+                column,
+                QTableWidgetItem(f"{value:.2f} g"),
+            )
