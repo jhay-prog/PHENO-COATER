@@ -100,9 +100,9 @@ class NIRAnalysisPage(QWidget):
 
         self.intensity_axis = QValueAxis()
         self.intensity_axis.setTitleText("Intensity")
-        self.intensity_axis.setRange(0, 1)
+        self.intensity_axis.setRange(0, 150)
         self.intensity_axis.setTickCount(6)
-        self.intensity_axis.setLabelFormat("%.2f")
+        self.intensity_axis.setLabelFormat("%.0f")
         self.intensity_axis.setLabelsFont(channel_font)
         self.intensity_axis.setTitleFont(channel_font)
         spectrum_chart.addAxis(self.intensity_axis, Qt.AlignmentFlag.AlignLeft)
@@ -111,7 +111,7 @@ class NIRAnalysisPage(QWidget):
         spectrum_view = QChartView(spectrum_chart)
         spectrum_view.setObjectName("nir_spectrum_chart")
         spectrum_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        spectrum_view.setMinimumHeight(320)
+        spectrum_view.setMinimumHeight(450)
         self.spectrum_chart = spectrum_chart
         chart_layout.addWidget(spectrum_view)
         top.addWidget(chart_panel, 3)
@@ -226,20 +226,12 @@ class NIRAnalysisPage(QWidget):
         self.serial_output.ensureCursorVisible()
 
     def update_spectrum_chart(self):
-        available_readings = [
-            reading
-            for reading in self.readings
-            if reading.value is not None
-        ]
         points = [
             QPointF(reading.wavelength_nm, reading.value)
             for reading in self.readings
             if reading.value is not None
         ]
         self.spectrum_series.replace(points)
-        if available_readings:
-            maximum_value = max(reading.value for reading in available_readings)
-            self.intensity_axis.setRange(0, max(1.0, maximum_value * 1.1))
 
     def append_reading_row(self, formatted_line):
         row = self.table.rowCount()

@@ -2,7 +2,6 @@
 #include <Servo.h>
 #include <SparkFun_AS7265X.h>
 #include <math.h>
-#include <stdlib.h>
 #include <string.h>
 
 // ======================= SETTINGS =======================
@@ -49,7 +48,7 @@ uint8_t BULB_CURRENT = AS7265X_LED_CURRENT_LIMIT_12_5MA;
 
 unsigned long MEASURE_TIMEOUT_MS = 1500;     
 unsigned long SENSOR_RETRY_MS = 2000;    
-unsigned long MAX_SCAN_DELAY_MS  = 60000;
+const unsigned long SCAN_INTERVAL_MS = 1000;
 
 // ======================= IR =======================
 
@@ -285,7 +284,6 @@ bool sensorReady = false;
 bool scanning    = false;     
 bool measuring   = false;    
 
-unsigned long scanDelayMs = 0;
 unsigned long nextScanAt = 0;
 unsigned long measureStartedAt = 0;
 unsigned long nextSensorAttemptAt = 0;
@@ -437,7 +435,7 @@ void nirUpdate()
     readChannels(values);
     endMeasurement();
     printSpectrum(values);
-    nextScanAt = millis() + scanDelayMs;
+    nextScanAt = measureStartedAt + SCAN_INTERVAL_MS;
   }
   else if (now - measureStartedAt > MEASURE_TIMEOUT_MS)
   {
@@ -467,17 +465,6 @@ void handleCommand(char *cmd)
   else if (strcmp(cmd, "P") == 0)
   {
     stopScan();
-  }
-  else if (cmd[0] == 'D' && cmd[1] != '\0')
-  {
-    char *end = nullptr;
-    unsigned long value = strtoul(cmd + 1, &end, 10);
-    if (*end == '\0')
-    {
-      scanDelayMs = value > MAX_SCAN_DELAY_MS ? MAX_SCAN_DELAY_MS : value;
-      Serial.print(F("SCAN_DELAY_MS: "));
-      Serial.println(scanDelayMs);
-    }
   }
   // Any other command (GUI servo page, load cell...) is ignored here.
 }

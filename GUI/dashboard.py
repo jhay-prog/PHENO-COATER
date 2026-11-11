@@ -101,7 +101,6 @@ class Dashboard(QWidget):
 
         self.camera_source = self.EMEET_CAMERA_INDEX
         self.arduino_baud_rate = 115200
-        self.nir_scan_delay_ms = 0
         self.camera_capture = None
         self.camera_control_values = CAMERA_CONTROL_DEFAULTS.copy()
         self.camera_control_overrides = {}
@@ -498,10 +497,6 @@ class Dashboard(QWidget):
         self.awaiting_bean_classification = False
         self.stop_camera()
 
-    def set_nir_scan_delay(self, delay_ms):
-        self.nir_scan_delay_ms = max(0, min(int(delay_ms), 60000))
-        self.send_nir_scan_delay()
-
     def initialize_nir_scanner(self):
         if (
             self.arduino_serial is None
@@ -512,7 +507,6 @@ class Dashboard(QWidget):
         self.write_arduino_command("N?\n")
         if self.ir_sample_requested and not self.ir_sample_acknowledged:
             self._send_ir_sample_start()
-        self.send_nir_scan_delay()
         self.send_nir_scan_command()
         for motor in (1, 2):
             self.send_servo_sweep_config(motor)
@@ -641,17 +635,6 @@ class Dashboard(QWidget):
         return good_weight_grams, not_good_weight_grams
 
     parse_load_cell_weight = parse_load_cell_weight_kg
-
-    def send_nir_scan_delay(self):
-        if self.arduino_serial is None or not self.arduino_serial.is_open:
-            return
-        try:
-            self.arduino_serial.write(
-                f"D{self.nir_scan_delay_ms}\n".encode("ascii")
-            )
-        except (serial.SerialException, OSError) as exc:
-            self.system_log_received.emit(f"NIR scan delay command failed: {exc}")
-            self.close_arduino_serial()
 
     def send_nir_scan_command(self):
         if self.arduino_serial is None or not self.arduino_serial.is_open:
@@ -866,7 +849,7 @@ class Dashboard(QWidget):
             else QBoxLayout.Direction.LeftToRight
         )
         preview_width = min(608, max(320, width - 36))
-        preview_height = 180 if is_narrow else 320
+        preview_height = 480
         self.camera_frame.setFixedSize(preview_width, preview_height)
         self.dashboard_subtitle.setVisible(True)
 
@@ -1327,6 +1310,7 @@ class Dashboard(QWidget):
         return True
 
     def render_camera_frame(self, frame):
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         height, width, channel = rgb_frame.shape
         bytes_per_line = channel * width
@@ -1343,10 +1327,19 @@ class Dashboard(QWidget):
         box_size = self.camera_frame.size()
         scaled = pixmap.scaled(
             box_size,
-            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation,
         )
-        self.camera_frame.setPixmap(scaled)
+        x_offset = (scaled.width() - box_size.width()) // 2
+        y_offset = (scaled.height() - box_size.height()) // 2
+        self.camera_frame.setPixmap(
+            scaled.copy(
+                x_offset,
+                y_offset,
+                box_size.width(),
+                box_size.height(),
+            )
+        )
         self.camera_frame.setText("")
 
     def update_camera_usage_button(self):
@@ -1506,8 +1499,8 @@ class Dashboard(QWidget):
         self.camera_frame = QLabel("Camera is Off")
         self.camera_frame.setObjectName("camera_frame")
         self.camera_frame.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.camera_frame.setMinimumSize(320, 180)
-        self.camera_frame.setMaximumSize(608, 320)
+        self.camera_frame.setMinimumSize(320, 480)
+        self.camera_frame.setMaximumSize(608, 480)
         self.camera_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,

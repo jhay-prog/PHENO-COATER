@@ -13,7 +13,7 @@ class ResultsPage(QWidget):
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(8)
 
-        title_label = QLabel("Results")
+        title_label = QLabel("Weight Analysis")
         title_label.setObjectName("page_title")
         subtitle = QLabel(
             "Inspection history is empty; totals appear after results are recorded."
@@ -45,8 +45,12 @@ class ResultsPage(QWidget):
 
         table = QTableWidget()
         table.setObjectName("results_table")
-        table.setColumnCount(4)
-        table.setHorizontalHeaderLabels(["Seed ID", "Weight", "Moisture", "Quality"])
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels([
+            "Weight Good Beans (Load cell 1)",
+            "Weight Bad Beans (Load cell 2)",
+            "Total Weight",
+        ])
         table.setRowCount(0)
         table.setMinimumHeight(220)
         table.horizontalHeader().setSectionsMovable(False)

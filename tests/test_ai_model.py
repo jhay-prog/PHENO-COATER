@@ -62,9 +62,6 @@ class AiModelIntegrationTests(unittest.TestCase):
             def set_camera_usage_enabled(self, _enabled):
                 pass
 
-            def set_nir_scan_delay(self, _delay_ms):
-                pass
-
             def set_ai_model_path(self, model_path):
                 self.configured_path = model_path
                 return True

@@ -29,6 +29,7 @@ from .auth import (
     AuthStorageError,
 )
 from .camera import CameraPage
+from .history import HistoryPage
 from .nir_analysis import NIRAnalysisPage
 from .results import ResultsPage
 from .settings import SettingsPage
@@ -523,9 +524,10 @@ class AdminControlPanel(QMainWindow):
         "System Overview",
         "Camera",
         "NIR Analysis",
-        "Inspection Results",
+        "Weight Analysis",
         "System Settings",
         "Process Monitor / Debug Logs",
+        "History",
         "Create Admin Account",
     )
 
@@ -577,6 +579,7 @@ class AdminControlPanel(QMainWindow):
         self.settings_page.ai_model_path_changed.connect(
             self.camera_page.use_dashboard_model
         )
+        self.history_page = HistoryPage()
         pages = [
             SystemOverviewPage(self.dashboard),
             self.camera_page,
@@ -584,6 +587,7 @@ class AdminControlPanel(QMainWindow):
             self.results_page,
             self.settings_page,
             ProcessMonitorPage(self.dashboard),
+            self.history_page,
             AdminAccountCreationPage(self.session, self.credentials),
         ]
         self.dashboard.nir_message_received.connect(

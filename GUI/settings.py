@@ -1,6 +1,5 @@
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtMultimedia import QMediaDevices
-from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox, QFrame, QVBoxLayout, QWidget
 from .animated_button import AnimatedButton
 from .ai_model import get_configured_ai_model_path, save_configured_ai_model_path
@@ -19,11 +18,6 @@ class SettingsPage(QWidget):
         self.setObjectName("settings_page")
         self.camera_controller = camera_controller
         self.permission_check = permission_check
-        self.saved_nir_scan_delay_ms = getattr(
-            camera_controller,
-            "nir_scan_delay_ms",
-            0,
-        )
         self.saved_ai_model_path = getattr(
             camera_controller,
             "ai_model_path",
@@ -119,22 +113,6 @@ class SettingsPage(QWidget):
             camera_name = "No camera detected"
         self.camera_source_input.setText(camera_name)
 
-    def set_nir_scan_delay(self, delay_ms):
-        if self.permission_check is not None and not self.permission_check():
-            return False
-        if self.camera_controller is not None:
-            self.camera_controller.set_nir_scan_delay(delay_ms)
-        return True
-
-    def commit_nir_scan_delay(self):
-        text = self.scan_delay_input.text()
-        if text.isdigit():
-            delay_ms = int(text)
-            if delay_ms <= 60000:
-                self.scan_delay_input.setText(str(delay_ms))
-                return
-        self.scan_delay_input.setText(str(self.saved_nir_scan_delay_ms))
-
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 14)
@@ -184,17 +162,6 @@ class SettingsPage(QWidget):
         camera_input.setReadOnly(True)
         self.camera_source_input = camera_input
         add_centered_form_row(connection_form, "Camera source", camera_input)
-        scan_delay_input = QLineEdit()
-        scan_delay_input.setValidator(QIntValidator(0, 60000, scan_delay_input))
-        scan_delay_input.setMaxLength(5)
-        scan_delay_input.setText(str(self.saved_nir_scan_delay_ms))
-        scan_delay_input.editingFinished.connect(self.commit_nir_scan_delay)
-        self.scan_delay_input = scan_delay_input
-        add_centered_form_row(
-            connection_form,
-            "NIR scan delay (ms)",
-            scan_delay_input,
-        )
         model_input = QLineEdit()
         model_input.setPlaceholderText(
             "Path to AI folder or .pt model file"
@@ -246,7 +213,6 @@ class SettingsPage(QWidget):
                 save_state.setText("Administrator access required")
                 return
             self.refresh_live_settings()
-            scan_delay_input.setText("0")
             model_input.clear()
             weight_input.setValue(0)
             moisture_input.setValue(0)
@@ -256,11 +222,6 @@ class SettingsPage(QWidget):
             if self.permission_check is not None and not self.permission_check():
                 save_state.setText("Administrator access required")
                 return
-            text = scan_delay_input.text()
-            if not text.isdigit() or int(text) > 60000:
-                save_state.setText("Enter a delay from 0 to 60000 ms")
-                return
-            delay_ms = int(text)
             model_path = model_input.text().strip()
             configure_model = getattr(
                 self.camera_controller,
@@ -279,10 +240,7 @@ class SettingsPage(QWidget):
                 save_state.setText(f"Could not save AI model path: {exc}")
                 return
 
-            self.set_nir_scan_delay(delay_ms)
-            self.saved_nir_scan_delay_ms = delay_ms
             self.saved_ai_model_path = model_path
-            scan_delay_input.setText(str(delay_ms))
             save_state.setText(
                 "Settings saved"
                 if not model_path

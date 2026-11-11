@@ -34,6 +34,7 @@ from GUI.camera import CameraPage
 from GUI.dashboard import Dashboard
 from GUI.main_window import MainWindow
 from GUI.pricing import PricingSettingsPage
+from GUI.history import get_batch_by_id, get_batches
 from GUI.settings import SettingsPage
 from GUI.styles import APP_STYLE
 from NIR.as7265x import AS7265XReader, WAVELENGTHS
@@ -66,12 +67,10 @@ class FakeDashboard(QWidget):
         self.ir_sensor_connected = False
         self.arduino_status_message = "Arduino not detected."
         self.current_weight_kg = None
-        self.total_bean_count = 0
         self.arduino_serial = None
         self.arduino_baud_rate = 115200
         self.selected_arduino_port = None
         self.camera_source = 0
-        self.nir_scan_delay_ms = 0
         self.nir_detected = False
         self.nir_connected = False
         self.ir_batch_active = False
@@ -811,7 +810,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
         self.assertFalse(dashboard.dashboard_subtitle.isHidden())
         self.assertEqual(
             dashboard.camera_frame.size().toTuple(),
-            (min(608, max(320, dashboard.width() - 36)), 180),
+            (min(608, max(320, dashboard.width() - 36)), 480),
         )
         self.assertEqual(dashboard.layout().contentsMargins().top(), 0)
         self.assertEqual(dashboard.layout().itemAt(0).layout().spacing(), 0)
@@ -925,6 +924,19 @@ class HardwareCompatibilityTests(unittest.TestCase):
         settings.port_refresh_timer.stop()
         settings.close()
 
+    def test_settings_does_not_expose_nir_scan_delay(self):
+        settings = SettingsPage()
+
+        self.assertFalse(
+            any(
+                label.text() == "NIR scan delay (ms)"
+                for label in settings.findChildren(QLabel)
+            )
+        )
+        self.assertFalse(hasattr(settings, "scan_delay_input"))
+        settings.port_refresh_timer.stop()
+        settings.close()
+
     def test_settings_arduino_port_selection_updates_dashboard(self):
         dashboard = FakeDashboard()
         ports = [
@@ -1014,6 +1026,14 @@ class HardwareCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(page.wavelength_axis.min(), WAVELENGTHS[0])
         self.assertEqual(page.wavelength_axis.max(), WAVELENGTHS[-1])
+        self.assertEqual(page.intensity_axis.min(), 0)
+        self.assertEqual(page.intensity_axis.max(), 150)
+        self.assertEqual(page.intensity_axis.tickCount(), 6)
+        self.assertEqual(page.intensity_axis.labelFormat(), "%.0f")
+        self.assertEqual(
+            page.findChild(QWidget, "nir_spectrum_chart").minimumHeight(),
+            450,
+        )
         panel.deleteLater()
 
     def test_dashboard_forwards_firmware_spectrum_to_admin_nir_analysis(self):
@@ -1162,6 +1182,50 @@ class HardwareCompatibilityTests(unittest.TestCase):
 
     def test_pricing_score_weights_always_total_one_hundred_percent(self):
         pricing_page = PricingSettingsPage()
+        pricing_page.show()
+        self.application.processEvents()
+        effect_labels = {
+            label.text(): label
+            for label in pricing_page.findChildren(QLabel)
+            if label.text() in ("Moisture Content", "PNS Grade")
+        }
+        moisture_effect_name = effect_labels["Moisture Content"]
+        pns_effect_name = effect_labels["PNS Grade"]
+        pricing_page.moisture_effect_label.adjustSize()
+        pricing_page.pns_effect_label.adjustSize()
+        self.assertEqual(moisture_effect_name.text(), "Moisture Content")
+        self.assertEqual(pns_effect_name.text(), "PNS Grade")
+        self.assertGreater(pns_effect_name.x(), moisture_effect_name.x())
+        self.assertEqual(pns_effect_name.y(), moisture_effect_name.y())
+        self.assertEqual(
+            pricing_page.moisture_effect_label.x(),
+            moisture_effect_name.x(),
+        )
+        self.assertGreater(
+            pricing_page.moisture_effect_label.y(),
+            pricing_page.moisture_effect_slider.y(),
+        )
+        self.assertGreater(
+            pricing_page.pns_effect_label.y(),
+            pricing_page.moisture_effect_slider.y(),
+        )
+        self.assertEqual(
+            pricing_page.moisture_effect_label.y(),
+            pricing_page.pns_effect_label.y(),
+        )
+        slider_right = (
+            pricing_page.moisture_effect_slider.x()
+            + pricing_page.moisture_effect_slider.width()
+        )
+        self.assertEqual(
+            pns_effect_name.x() + pns_effect_name.width(),
+            slider_right,
+        )
+        self.assertEqual(
+            pricing_page.pns_effect_label.x()
+            + pricing_page.pns_effect_label.width(),
+            slider_right,
+        )
         self.assertEqual(
             pricing_page.total_price_result.text(),
             "",
@@ -1452,7 +1516,7 @@ class HardwareCompatibilityTests(unittest.TestCase):
             },
         )
 
-    def test_admin_panel_reuses_dashboard_and_blocks_commands_after_logout(self):
+    def test_admin_panel_reuses_dashboard_and_denies_subadmin_account_creation(self):
         session = AdminSession()
         session.grant_admin()
         dashboard = FakeDashboard()
@@ -1464,10 +1528,15 @@ class HardwareCompatibilityTests(unittest.TestCase):
             ("System Overview", "Camera", "NIR Analysis"),
         )
         self.assertEqual(panel.stack.count(), len(panel.SECTION_NAMES))
+        history_index = panel.SECTION_NAMES.index("History")
+        debug_logs_index = panel.SECTION_NAMES.index(
+            "Process Monitor / Debug Logs"
+        )
+        self.assertEqual(history_index, debug_logs_index + 1)
         self.assertNotIn("Servo Control", panel.SECTION_NAMES)
         self.assertFalse(hasattr(panel, "servo_page"))
         self.assertEqual(dashboard.commands, [])
-        self.assertEqual(len(panel.admin_scroll_areas), 7)
+        self.assertEqual(len(panel.admin_scroll_areas), 8)
         self.assertTrue(panel.navigation_buttons[-1].isHidden())
         overview = panel.admin_scroll_areas[0].widget()
         self.assertEqual(
@@ -1567,10 +1636,73 @@ class HardwareCompatibilityTests(unittest.TestCase):
                 "#f4f6f8",
             )
 
-        session.revoke()
-        self.assertFalse(
-            panel.settings_page.set_nir_scan_delay(250)
+        panel.deleteLater()
+
+    def test_admin_history_lists_sample_batch_and_shows_its_details(self):
+        dashboard = FakeDashboard()
+        session = AdminSession()
+        session.grant_admin()
+        panel = AdminControlPanel(dashboard, session)
+        history_index = panel.SECTION_NAMES.index("History")
+
+        batches = get_batches()
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(batches[0].batch_id, "0001")
+        self.assertIs(get_batch_by_id("0001"), batches[0])
+        self.assertIsNone(get_batch_by_id("9999"))
+
+        panel.change_page(history_index)
+        history = panel.history_page
+        self.assertEqual(history.views.currentWidget(), history.list_view)
+        entries = history.findChildren(QPushButton, "history_batch_entry")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(
+            entries[0].text(),
+            "November 20, 2026 - Batch (0001)",
         )
+
+        entries[0].click()
+        self.assertEqual(
+            history.views.currentWidget(),
+            history.details_view,
+        )
+        self.assertEqual(
+            {
+                name: label.text()
+                for name, label in history.summary_values.items()
+            },
+            {
+                "Batch ID": "0001",
+                "Price per kilo": "₱ 250.00",
+                "Total weight": "12.40 kg",
+                "Total beans": "1,248",
+                "Overall PNS grade score": "92 / 100",
+                "Current weight": "11.85 kg",
+                "Overall moisture score": "7.2 %",
+                "Date": "Nov 20, 2026",
+            },
+        )
+        self.assertEqual(len(history.summary_cards), 8)
+        self.assertTrue(
+            all(
+                card.objectName() == "history_summary_card"
+                for card in history.summary_cards
+            )
+        )
+        back_button = history.findChild(QPushButton, "history_back_button")
+        self.assertEqual(back_button.text(), "Back")
+        self.assertIsNone(history.findChild(QLabel, "history_details_title"))
+        self.assertIn("text-align: center", back_button.styleSheet())
+        self.assertIsNone(history.findChild(QLabel, "history_more_details"))
+        back_button.click()
+        self.assertEqual(history.views.currentWidget(), history.list_view)
+        with patch("GUI.history.get_batches", return_value=()):
+            history.show_history_list()
+        self.assertEqual(
+            history.findChild(QLabel, "history_empty_message").text(),
+            "No batches yet",
+        )
+        self.assertEqual(history.batch_entries.count(), 1)
         panel.deleteLater()
 
     def test_super_admin_can_create_admin_with_username_and_password_only(self):

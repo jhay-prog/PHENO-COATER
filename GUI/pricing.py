@@ -5,6 +5,7 @@ from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -195,18 +196,27 @@ class PricingSettingsPage(QWidget):
         effect_section = QVBoxLayout()
         effect_section.setSpacing(0)
         effect_section.addWidget(effect_title)
-        effect_section.addSpacing(12)
+        effect_section.addSpacing(20)
 
-        moisture_effect_row = QHBoxLayout()
-        moisture_effect_label = QLabel("Moisture Content Price Percent Effect")
-        moisture_effect_label.setObjectName("pricing_control_label")
+        effect_grid = QGridLayout()
+        effect_grid.setVerticalSpacing(12)
+        effect_grid.setColumnStretch(0, 1)
+        effect_grid.setColumnStretch(1, 1)
+        moisture_effect_name = QLabel("Moisture Content")
+        moisture_effect_name.setObjectName("pricing_control_label")
         self.moisture_effect_label = QLabel("50%")
         self.moisture_effect_label.setObjectName("pricing_effect_value")
-        moisture_effect_row.addWidget(moisture_effect_label)
-        moisture_effect_row.addStretch()
-        moisture_effect_row.addWidget(self.moisture_effect_label)
-        effect_section.addLayout(moisture_effect_row)
-        effect_section.addSpacing(45)
+        pns_effect_name = QLabel("PNS Grade")
+        pns_effect_name.setObjectName("pricing_control_label")
+        self.pns_effect_label = QLabel("50%")
+        self.pns_effect_label.setObjectName("pricing_effect_value")
+        effect_grid.addWidget(moisture_effect_name, 0, 0)
+        effect_grid.addWidget(
+            pns_effect_name,
+            0,
+            1,
+            alignment=Qt.AlignmentFlag.AlignRight,
+        )
 
         self.moisture_effect_slider = QSlider(Qt.Orientation.Horizontal)
         self.moisture_effect_slider.setObjectName("pricing_effect_slider")
@@ -215,19 +225,16 @@ class PricingSettingsPage(QWidget):
         self.moisture_effect_slider.valueChanged.connect(
             self._update_effect_labels
         )
-        self.moisture_effect_slider.valueChanged.connect(self._inputs_changed)
-        effect_section.addWidget(self.moisture_effect_slider)
-        effect_section.addSpacing(45)
-
-        pns_effect_row = QHBoxLayout()
-        pns_effect_label = QLabel("PNS Grade Price Percent Effect")
-        pns_effect_label.setObjectName("pricing_control_label")
-        self.pns_effect_label = QLabel("50%")
-        self.pns_effect_label.setObjectName("pricing_effect_value")
-        pns_effect_row.addWidget(pns_effect_label)
-        pns_effect_row.addStretch()
-        pns_effect_row.addWidget(self.pns_effect_label)
-        effect_section.addLayout(pns_effect_row)
+        self.moisture_effect_slider.valueChanged.connect(self._inputs_changed        )
+        effect_grid.addWidget(self.moisture_effect_slider, 1, 0, 1, 2)
+        effect_grid.addWidget(self.moisture_effect_label, 2, 0)
+        effect_grid.addWidget(
+            self.pns_effect_label,
+            2,
+            1,
+            alignment=Qt.AlignmentFlag.AlignRight,
+        )
+        effect_section.addLayout(effect_grid)
         controls_layout.addLayout(effect_section)
         controls_layout.addSpacing(40)
         controls_layout.addStretch()

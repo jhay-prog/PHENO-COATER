@@ -64,6 +64,7 @@ class CameraPage(QWidget):
         self.camera_control_sliders = {}
         self.camera_control_values = CAMERA_CONTROL_DEFAULTS.copy()
         self.has_camera_controls_status_signal = False
+        self._restoring_camera_controls = False
         self.setup_ui()
         if camera_controller is not None:
             status_signal = getattr(
@@ -308,7 +309,7 @@ class CameraPage(QWidget):
 
         preview_box = QLabel("No camera connected")
         preview_box.setObjectName("main_camera_frame")
-        preview_box.setMinimumSize(320, 240)
+        preview_box.setMinimumSize(320, 480)
         preview_box.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -459,6 +460,12 @@ class CameraPage(QWidget):
 
     def _set_camera_control(self, property_id, value):
         self.camera_control_values[property_id] = value
+        if self._restoring_camera_controls:
+            if self.camera_controller is None:
+                self.local_camera_controls[property_id] = value
+                self.local_camera_control_overrides[property_id] = value
+            return
+
         if self.camera_controller is None:
             self.local_camera_controls[property_id] = value
             self.local_camera_control_overrides[property_id] = value
@@ -658,14 +665,21 @@ class CameraPage(QWidget):
         self.full_view_box = None
 
     def restore_camera_controls(self):
-        self.focus_auto_button.setChecked(True)
-        self._set_focus_mode(True)
-        self.exposure_auto_button.setChecked(True)
-        self._set_exposure_mode(True)
-        self.white_balance_auto_button.setChecked(True)
-        self._set_white_balance_mode(True)
-        for property_id, slider in self.camera_control_sliders.items():
-            slider.setValue(CAMERA_CONTROL_DEFAULTS[property_id])
+        self._restoring_camera_controls = True
+        try:
+            self.focus_auto_button.setChecked(True)
+            self._set_focus_mode(True)
+            self.exposure_auto_button.setChecked(True)
+            self._set_exposure_mode(True)
+            self.white_balance_auto_button.setChecked(True)
+            self._set_white_balance_mode(True)
+            for property_id, slider in self.camera_control_sliders.items():
+                slider.setValue(CAMERA_CONTROL_DEFAULTS[property_id])
+        finally:
+            self._restoring_camera_controls = False
+
+        for property_id, value in self._camera_controls_for_start().items():
+            self._set_camera_control(property_id, value)
 
     def load_model(self, model_path=None):
         if not model_path:
@@ -937,6 +951,7 @@ class CameraPage(QWidget):
         self.bean_count_label.setText(str(bean_count))
 
     def render_frame(self, frame):
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         height, width, channels = rgb_frame.shape
         image = QImage(rgb_frame.data, width, height, channels * width, QImage.Format.Format_RGB888)
@@ -949,10 +964,18 @@ class CameraPage(QWidget):
 
     @staticmethod
     def _fit_pixmap(pixmap, label):
-        return pixmap.scaled(
+        scaled = pixmap.scaled(
             label.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation,
+        )
+        x_offset = (scaled.width() - label.width()) // 2
+        y_offset = (scaled.height() - label.height()) // 2
+        return scaled.copy(
+            x_offset,
+            y_offset,
+            label.width(),
+            label.height(),
         )
 
 

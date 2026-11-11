@@ -104,6 +104,25 @@ class CameraControlTests(unittest.TestCase):
         )
         self.assertEqual(capture.values[cv2.CAP_PROP_FPS], 60)
 
+    def test_dashboard_camera_preview_displays_portrait_orientation(self):
+        with patch("GUI.dashboard.get_configured_ai_model_path", return_value=""):
+            with patch.object(Dashboard, "update_arduino_status"):
+                dashboard = Dashboard()
+        self.addCleanup(dashboard.close)
+        dashboard.arduino_timer.stop()
+        dashboard.camera_frame.resize(320, 180)
+
+        dashboard.render_camera_frame(
+            np.zeros((720, 1280, 3), dtype=np.uint8)
+        )
+
+        displayed_pixmap = dashboard.camera_frame.pixmap()
+        self.assertIsNotNone(displayed_pixmap)
+        self.assertEqual(
+            displayed_pixmap.size(),
+            dashboard.camera_frame.size(),
+        )
+
     def test_dashboard_does_not_restart_camera_for_current_resolution(self):
         class FakeCapture:
             def __init__(self):
@@ -277,22 +296,17 @@ class CameraControlTests(unittest.TestCase):
         self.assertTrue(page.camera_timer.isActive())
         self.assertEqual(page.camera_timer.interval(), 17)
 
-    def test_admin_preview_fits_frame_without_cropping(self):
+    def test_admin_preview_fills_frame_with_zoomed_crop(self):
         page = CameraPage(camera_controller=object())
         self.addCleanup(page.close)
-        page.preview_box.resize(420, 360)
+        page.preview_box.resize(420, 500)
 
         page.render_frame(np.zeros((720, 1280, 3), dtype=np.uint8))
 
         displayed_pixmap = page.preview_box.pixmap()
         self.assertIsNotNone(displayed_pixmap)
         self.assertEqual(displayed_pixmap.width(), 420)
-        self.assertLessEqual(displayed_pixmap.height(), 360)
-        self.assertAlmostEqual(
-            displayed_pixmap.width() / displayed_pixmap.height(),
-            16 / 9,
-            places=2,
-        )
+        self.assertEqual(displayed_pixmap.height(), 500)
 
     def test_full_view_shows_shared_feed_and_can_be_closed(self):
         page = CameraPage(camera_controller=object())
@@ -306,15 +320,13 @@ class CameraControlTests(unittest.TestCase):
         self.assertTrue(page.full_view_dialog.isFullScreen())
         self.assertIsNotNone(page.full_view_box.pixmap())
         page.render_frame(np.zeros((720, 1280, 3), dtype=np.uint8))
-        self.assertLessEqual(
+        self.assertEqual(
             page.full_view_box.pixmap().width(),
             page.full_view_box.width(),
         )
-        self.assertAlmostEqual(
-            page.full_view_box.pixmap().width()
-            / page.full_view_box.pixmap().height(),
-            16 / 9,
-            places=2,
+        self.assertEqual(
+            page.full_view_box.pixmap().height(),
+            page.full_view_box.height(),
         )
 
         page.full_view_dialog.reject()
@@ -615,6 +627,18 @@ class CameraControlTests(unittest.TestCase):
         self.assertEqual(controller.values[cv2.CAP_PROP_AUTOFOCUS], 1)
         self.assertEqual(controller.values[cv2.CAP_PROP_AUTO_EXPOSURE], 0.75)
         self.assertEqual(controller.values[cv2.CAP_PROP_AUTO_WB], 1)
+        self.assertEqual(controller.values[cv2.CAP_PROP_FOCUS], 80)
+        self.assertEqual(controller.values[cv2.CAP_PROP_EXPOSURE], -4)
+        self.assertEqual(controller.values[cv2.CAP_PROP_WB_TEMPERATURE], 6400)
+        self.assertEqual(
+            controller.stream_values[cv2.CAP_PROP_FRAME_WIDTH],
+            1280,
+        )
+        self.assertEqual(
+            controller.stream_values[cv2.CAP_PROP_FRAME_HEIGHT],
+            720,
+        )
+        self.assertEqual(controller.stream_values[cv2.CAP_PROP_FPS], 60)
 
 
 if __name__ == "__main__":

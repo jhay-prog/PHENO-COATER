@@ -1387,8 +1387,70 @@ APP_STYLE += """
 #nir_analysis_page QLabel#page_title,
 #results_page QLabel#page_title,
 #settings_page QLabel#page_title,
+#admin_history_page QLabel#page_title,
 #admin_account_creation_page QLabel#page_title {
     font-size: 28px;
+}
+
+#admin_history_page {
+    background-color: #ffffff;
+}
+
+#admin_history_page QLabel#history_summary_name {
+    color: #607267;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#admin_history_page QLabel#history_summary_value {
+    color: #173f2a;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+#admin_history_page QLabel#history_summary_caption {
+    color: #43845a;
+    font-size: 12px;
+}
+
+#admin_history_page QFrame#history_summary_card {
+    background-color: #ffffff;
+    border: 2px solid #43845a;
+    border-radius: 16px;
+    min-height: 92px;
+}
+
+#admin_history_page QLabel#history_empty_message {
+    color: #607267;
+    padding: 16px;
+}
+
+#admin_history_page QPushButton#history_batch_entry {
+    background-color: #ffffff;
+    border: 2px solid #43845a;
+    border-radius: 14px;
+    color: #173f2a;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 14px;
+    text-align: left;
+}
+
+#admin_history_page QPushButton#history_batch_entry:hover {
+    background-color: #e8f5ec;
+    border-color: #2e704b;
+}
+
+#admin_history_page QPushButton#history_back_button {
+    background-color: #2e7d4f;
+    border: 1px solid #2e7d4f;
+    color: white;
+    font-weight: bold;
+    min-height: 36px;
+}
+
+#admin_history_page QPushButton#history_back_button:hover {
+    background-color: #24643e;
 }
 
 #nir_analysis_page QLabel.section_title {
@@ -1421,10 +1483,6 @@ QMessageBox#admin_delete_confirmation_dialog QLabel {
 }
 
 #results_table QHeaderView::section {
-    font-size: 14px;
-}
-
-#results_page QLabel#results_summary_label {
     font-size: 14px;
 }
 
