@@ -6,7 +6,7 @@ Set shell = CreateObject("WScript.Shell")
 Set fileSystem = CreateObject("Scripting.FileSystemObject")
 
 projectFolder = fileSystem.GetParentFolderName(WScript.ScriptFullName)
-venvFolder = fileSystem.BuildPath(projectFolder, ".venv")
+venvFolder = fileSystem.BuildPath(projectFolder, ".venv313")
 pythonPath = fileSystem.BuildPath(venvFolder, "Scripts\python.exe")
 pythonwPath = fileSystem.BuildPath(venvFolder, "Scripts\pythonw.exe")
 requirementsPath = fileSystem.BuildPath(projectFolder, "requirements.txt")
@@ -20,23 +20,23 @@ End If
 
 If Not fileSystem.FileExists(pythonPath) Then
     On Error Resume Next
-    setupExitCode = shell.Run("py -3 -m venv """ & venvFolder & """", 1, True)
+    setupExitCode = shell.Run("py -3.13 -m venv """ & venvFolder & """", 1, True)
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0
-        MsgBox "Python 3 was not found. Install Python 3 with the Python Launcher, then run this file again.", vbExclamation, "PhenoCoater"
+        MsgBox "Python 3.13 was not found. Install Python 3.13 with the Python Launcher, then run this file again.", vbExclamation, "PhenoCoater"
         WScript.Quit 1
     End If
     On Error GoTo 0
 
     If setupExitCode <> 0 Then
-        MsgBox "Could not create the Python virtual environment. Check that Python 3 is installed, then try again.", vbExclamation, "PhenoCoater"
+        MsgBox "Could not create the Python 3.13 virtual environment. Check that Python 3.13 is installed, then try again.", vbExclamation, "PhenoCoater"
         WScript.Quit setupExitCode
     End If
 End If
 
 If Not fileSystem.FileExists(pythonwPath) Then
-    MsgBox "The Python virtual environment is incomplete. Delete the .venv folder and run this launcher again.", vbExclamation, "PhenoCoater"
+    MsgBox "The Python 3.13 virtual environment is incomplete. Delete the .venv313 folder and run this launcher again.", vbExclamation, "PhenoCoater"
     WScript.Quit 1
 End If
 
