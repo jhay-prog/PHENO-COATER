@@ -7,6 +7,7 @@
         "${workspaceFolder}/**",
         "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.8/cores/arduino",
         "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.8/variants/mega",
+        "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.8/libraries/EEPROM/src",
         "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/hardware/avr/1.8.8/libraries/Wire/src",
         "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/avr/include",
         "C:/Users/JHON JHAY/AppData/Local/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/lib/gcc/avr/7.3.0/include",
@@ -15,7 +16,7 @@
         "C:/Users/JHON JHAY/Documents/Arduino/libraries/SparkFun_Spectral_Triad_AS7265X/src"
       ],
       "defines": [
-        "ARDUINO=10819",
+        "ARDUINO=10607",
         "ARDUINO_ARCH_AVR",
         "ARDUINO_AVR_MEGA2560",
         "__AVR_ATmega2560__",

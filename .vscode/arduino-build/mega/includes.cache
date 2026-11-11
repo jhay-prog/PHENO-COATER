@@ -1,0 +1,763 @@
+[
+  {
+    "added_include_path": "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino"
+  },
+  {
+    "added_include_path": "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega"
+  },
+  {
+    "compile": {
+      "source_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": "EEPROM.h"
+  },
+  {
+    "added_include_path": "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src"
+  },
+  {
+    "compile": {
+      "source_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": "HX711.h"
+  },
+  {
+    "added_include_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711"
+  },
+  {
+    "compile": {
+      "source_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": "Servo.h"
+  },
+  {
+    "added_include_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src"
+  },
+  {
+    "compile": {
+      "source_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\sketch\\mega_controller.ino.cpp.merged.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711\\HX711.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\HX711\\HX711.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711\\HX711.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\HX711\\HX711.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\avr\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\avr\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\avr\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\avr\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\esp32\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\esp32\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\esp32\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\esp32\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\mbed\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\mbed\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\mbed\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\mbed\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\megaavr\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\megaavr\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\megaavr\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\megaavr\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\nrf52\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\nrf52\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\nrf52\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\nrf52\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\renesas\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\renesas\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\renesas\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\renesas\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\sam\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\sam\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\sam\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\sam\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\samd\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\samd\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\samd\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\samd\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\stm32f4\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\stm32f4\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\stm32f4\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\stm32f4\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\xmc\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\xmc\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\xmc\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\xmc\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  },
+  {
+    "compile": {
+      "source_path": "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\zephyr\\Servo.cpp",
+      "depfile_path": "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\zephyr\\Servo.cpp.libsdetect.d"
+    },
+    "compile_task": {
+      "args": [
+        "C:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+        "-c",
+        "-g",
+        "-Os",
+        "-w",
+        "-std=gnu++11",
+        "-fpermissive",
+        "-fno-exceptions",
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fno-threadsafe-statics",
+        "-Wno-error=narrowing",
+        "-flto",
+        "-w",
+        "-x",
+        "c++",
+        "-E",
+        "-CC",
+        "-mmcu=atmega2560",
+        "-DF_CPU=16000000L",
+        "-DARDUINO=10607",
+        "-DARDUINO_AVR_MEGA2560",
+        "-DARDUINO_ARCH_AVR",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\cores\\arduino",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\variants\\mega",
+        "-IC:\\Users\\JHON JHAY\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.8\\libraries\\EEPROM\\src",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\HX711",
+        "-IC:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src",
+        "C:\\Users\\JHON JHAY\\Documents\\Arduino\\libraries\\Servo\\src\\zephyr\\Servo.cpp",
+        "-o",
+        "nul",
+        "-MMD",
+        "-MF",
+        "c:\\Users\\JHON JHAY\\Documents\\PHENO-COATER\\.vscode\\arduino-build\\mega\\libraries\\Servo\\zephyr\\Servo.cpp.libsdetect.d"
+      ]
+    }
+  },
+  {
+    "missing_include_h": ""
+  }
+]

@@ -61,3 +61,12 @@ known samples before relying on physical sorting.
 Load-cell values are only meaningful after calibrating each assembled
 load-cell platform with a known mass. The displayed cell readings are the
 current stable totals on the good and not-good platforms.
+
+## VS Code IntelliSense
+
+The workspace C/C++ configuration includes the Mega 2560 board core and its
+EEPROM library. If IntelliSense still reports that `EEPROM.h` cannot be opened,
+select **Arduino Mega 2560** from the C/C++ configuration selector, then run
+**C/C++: Reset IntelliSense Database** from the Command Palette. Confirm the
+Arduino AVR Boards core and HX711 library are installed in Arduino CLI; this
+does not affect Arduino CLI compilation or board uploads.

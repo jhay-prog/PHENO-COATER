@@ -301,7 +301,6 @@ void setFrontState(FrontState state)
   {
     digitalWrite(MOTOR_PIN, HIGH);
     setServoAngle(0, 79);
-    lastFeedAt = millis();
   }
   else if (state == FRONT_SCAN)
   {
@@ -463,6 +462,7 @@ void FrontProcess()
     case FRONT_STARTUP:
       if (!stepper1.rotating)
       {
+        lastFeedAt = now;
         setFrontState(FRONT_FEED);
         if (stableIrState == LOW) handleIrDetection();
       }
@@ -472,11 +472,15 @@ void FrontProcess()
       {
         idleStepperPending = false;
         lastFeedAt = now;
+        digitalWrite(MOTOR_PIN, HIGH);
       }
       if (!stepper1.rotating && now - lastFeedAt >= IDLE_STEP_INTERVAL_MS)
       {
-        startStepperTurn(stepper1);
-        idleStepperPending = true;
+        if (startStepperTurn(stepper1))
+        {
+          digitalWrite(MOTOR_PIN, LOW);
+          idleStepperPending = true;
+        }
       }
       break;
     case FRONT_SCAN:
@@ -667,6 +671,7 @@ void handleIrDetection()
   frontBeanClass = BEAN_UNDEFINED;
   classificationReceived = false;
   frontNirScanCount = 0;
+  lastFeedAt = millis();
   digitalWrite(MOTOR_PIN, LOW);
   Serial.println(F("IR_SENSOR_DETECTED"));
   Serial.print(F("BEAN_COUNT: "));
